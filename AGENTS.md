@@ -1,3 +1,13 @@
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
 # AGENTS.md: Mini Booking System
 
 ## Контекст проекта
@@ -10,13 +20,16 @@
 ## Источники истины
 
 - Перед кодом читать `spec.md` и активный пункт `Plan.md`.
+- Зоны не смешивать: `spec.md` — требования (роли, данные, границы урока, FR, NFR, CR); `AGENTS.md` — только правила работы агента. Спецификацию сюда не дублировать и не превращать файл в общий учебник.
 - `Plan.md` ведёт текущую работу: статус, шаги, проверки, ошибки и следующий узкий запрос.
 - `README.md` обновляется после реализации и проверки как runbook запуска.
-- Команды запуска, проверки, миграций и `seed` брать из `package.json` или уже подтверждённого runbook.
+- Команды запуска, проверки, миграций и `seed` брать из `package.json` или уже подтверждённого runbook; имена скриптов не выдумывать.
+- До кода сверять API со справкой: справка Prisma CLI (`npx prisma --help`, `npx prisma migration --help`, `npx prisma db --help`) и документация Next.js 16 в `node_modules/next/dist/docs/` (см. управляемый блок `nextjs-agent-rules` выше). Не опираться на память о прежних версиях этих библиотек.
 
 ## Рабочие правила
 
-- Выполнять один активный пункт `Plan.md` за раз.
+- Соблюдать обязательный цикл проекта: `spec.md` → `Plan.md` → `AGENTS.md` → Code → Check → `README.md`.
+- Выполнять один активный пункт `Plan.md` за раз: следующий шаг не начинать до проверки текущего и обновления его статуса.
 - Перед изменением кода показывать план файлов.
 - После изменения указывать, что проверено и что осталось проверить вручную.
 - Если меняется способ запуска, миграции, `seed` или smoke-тест, зафиксировать это для финального `README.md`.
@@ -35,6 +48,8 @@
 
 - Не реализовывать `slots`, `bookings`, `notifications` и полный booking flow.
 - Не добавлять OAuth, email, SMS, calendar, desktop-уведомления, deploy и внешний контур.
+- Не добавлять административные функции и назначение ролей `admin` и `super_admin` через интерфейс или API: `/admin` — только проверочный маршрут без изменения данных.
+- Не вводить новые зависимости и внешние сервисы без отдельного решения в `spec.md`.
 
 ## Правила работы с Git
 
