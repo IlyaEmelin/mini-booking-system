@@ -1,12 +1,40 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# AGENTS.md: Mini Booking System
 
-## This is NOT the Next.js you know
+## Контекст проекта
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+- Проект: локальный учебный Mini Booking System.
+- Стек: Next.js, React, TypeScript, Tailwind CSS, Zod, PostgreSQL, Prisma, npm.
+- Текущая фаза: `4.3.2 auth-lite`.
+- Цель фазы: регистрация, вход, локальная сессия, роли и первый контур аккаунта.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+## Источники истины
 
-<!-- END:nextjs-agent-rules -->
+- Перед кодом читать `spec.md` и активный пункт `Plan.md`.
+- `Plan.md` ведёт текущую работу: статус, шаги, проверки, ошибки и следующий узкий запрос.
+- `README.md` обновляется после реализации и проверки как runbook запуска.
+- Команды запуска, проверки, миграций и `seed` брать из `package.json` или уже подтверждённого runbook.
+
+## Рабочие правила
+
+- Выполнять один активный пункт `Plan.md` за раз.
+- Перед изменением кода показывать план файлов.
+- После изменения указывать, что проверено и что осталось проверить вручную.
+- Если меняется способ запуска, миграции, `seed` или smoke-тест, зафиксировать это для финального `README.md`.
+- Не переписывать соседние части проекта без явной причины.
+
+## Правила `auth-lite`
+
+- Новая регистрация создаёт пользователя с ролью `user`.
+- Через `seed` создаётся ровно один пользователь с ролью `super_admin`.
+- В базе хранится только `passwordHash`, а не plain text пароль.
+- Для хеширования использовать `bcryptjs.hash(password, 12)`.
+- Для входа использовать `bcryptjs.compare(inputPassword, user.passwordHash)`.
+- Проверки сессии и ролей выполняются на серверной стороне, а не только в React-компонентах.
+
+## Вне текущей фазы
+
+- Не реализовывать `slots`, `bookings`, `notifications` и полный booking flow.
+- Не добавлять OAuth, email, SMS, calendar, desktop-уведомления, deploy и внешний контур.
 
 ## Правила работы с Git
 
