@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Каталоги Prisma-скиллов для ИИ-агентов: их наполняет `prisma skills sync`
+    // (`postinstall`), файлы не являются кодом проекта.
+    ".agents/skills/**",
+    ".claude/skills/**",
+    ".cursor/skills/**",
+    ".devin/skills/**",
   ]),
 ]);
 

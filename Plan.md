@@ -10,23 +10,28 @@
 - Цель цикла: собрать минимальный `auth-lite`-фрагмент, который продолжится в уроках 4.3.3 и 4.3.4.
 - Ограничение объёма: не расширять продукт до слотов, бронирований, уведомлений, полного booking flow, внешних каналов (OAuth, email, SMS, calendar, desktop) и деплоя; административные функции не реализуются, `/admin` — только проверка роли.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
-- Сейчас в работе: **Шаг 4. Выровнять версии Prisma и подготовить `package.json`** (шаги 0–3 закрыты).
-- Последняя проверка: Шаг 3 — список файлов сверен с разделом «Структура файлов» `spec.md` (строки 261–283), лишних файлов нет; справка Prisma CLI 8 прочитана (`contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`); документация Next.js 16 прочитана (`01-app/02-guides/forms.md`, `01-app/03-api-reference/04-functions/redirect.md`, `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`, `01-app/02-guides/authentication-with-cache-components.md`); выяснено, что команд `prisma migrate dev` и `prisma db seed` в этой версии CLI нет.
-- Ошибки и блокеры: до выравнивания версий Prisma (шаг 4) схема, миграции и генерация клиента не создаются (CR-32); команда `prisma migrate dev`, записанная ранее в Шаге 4, в Prisma 8.0.0-rc.22 отсутствует — заменена на `prisma migration plan` + `prisma db migrate` (уточнение Шага 3).
-- Следующий шаг после активного: Шаг 5. Подготовить окружение.
+- Сейчас в работе: **Шаг 5. Подготовить окружение** (шаги 0–4 закрыты).
+- Последняя проверка: Шаг 4 — `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0` → `@prisma/orm-postgres@8.0.0-rc.18`, `prisma@8.0.0-rc.22` (записи `@prisma/client` нет); `npx prisma --version` → `{"version":"8.0.0-rc.22"}`; `npm install` → `added 34 packages, and removed 2 packages`; `npm view @prisma/client dist-tags` → `latest: 7.10.1`, `npm view @prisma/client@8.0.0-rc.22 version` → 404; `postinstall` (`prisma skills sync`) → скиллы `prisma-8`, `prisma-composer-core-concepts`, `prisma-platform-core-concepts`. Ранее, на Шаге 3 — список файлов сверен с разделом «Структура файлов» `spec.md` (строки 261–283), лишних файлов нет; справка Prisma CLI 8 прочитана (`contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`); документация Next.js 16 прочитана (`01-app/02-guides/forms.md`, `01-app/03-api-reference/04-functions/redirect.md`, `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`, `01-app/02-guides/authentication-with-cache-components.md`); выяснено, что команд `prisma migrate dev` и `prisma db seed` в этой версии CLI нет.
+- Ошибки и блокеры: открытых нет. Блокер CR-32 закрыт на шаге 4 (решение A): `@prisma/client` удалён, его место занимает клиент Prisma 8 `@prisma/orm-postgres`, обе записи Prisma в `package.json` точные. Учтено для шага 6: `prisma contract emit` требует секцию `orm` (`adapter`, `family`, `target`) в `prisma.config.ts`, иначе `CLI.CONFIG_SECTION_INVALID`; команды `prisma generate` в Prisma 8 нет; команда `prisma migrate dev` отсутствует — заменена на `prisma migration plan` + `prisma db migrate` (уточнение Шага 3).
+- Следующий шаг после активного: Шаг 6. Создать Prisma-контракт и миграцию.
 
 ### 1.1 Сверка с репозиторием (факты, проверено)
 
 - Есть: `spec.md`, `AGENTS.md`, `prisma.config.ts`, `.env`, `.env.example`, `.gitignore`, `README.md` (шаблонный), `app/layout.tsx`, `app/page.tsx` (стартовый экран), `app/globals.css`, `app/favicon.ico`.
 - Нет: `prisma/schema.prisma`, `prisma/migrations`, каталогов `app/lib/`, `app/actions/`, `app/ui/`, `tests/`, `scripts/`.
-- npm-скрипты есть: `dev`, `build`, `start`, `lint`, `postinstall`. Нет: `db:migrate`, `db:seed`, `sessions:cleanup`, `test` (шаг 4).
-- Версии Prisma рассинхронизированы: установлены `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0 (`npm ls prisma @prisma/client`, `npx prisma --version`; шаг 4).
+- npm-скрипты есть: `dev`, `build`, `start`, `lint`, `postinstall`, `db:migrate`, `db:seed`, `sessions:cleanup`, `test` (четыре последних добавлены на шаге 4).
+- Версии Prisma (шаг 4): установлены `prisma` 8.0.0-rc.22 и `@prisma/orm-postgres` 8.0.0-rc.18, обе записи в `package.json` точные, без `^`; `@prisma/client` удалён (`npm view @prisma/client dist-tags` → `latest: 7.10.1`, `@prisma/client@8.0.0-rc.22` → 404).
 - `.env.example` содержит рабочий placeholder-пароль `SEED_SUPER_ADMIN_PASSWORD="password"` — по CR-27 недопустимо (шаг 5).
 - `.env` и `.env.test` игнорируются шаблоном `.env*` из `.gitignore`; `.env.example` из-под шаблона исключён (проверено `git check-ignore`).
 - `AGENTS.md` содержит управляемый блок `nextjs-agent-rules`, правила auth-фазы, правила Git и обязательный цикл работы: шаг 2 закрыт.
 - Version-специфика: Next.js 16.4.1, Turbopack, Cache Components; перед кодом читать `node_modules/next/dist/docs/` (правило `AGENTS.md`).
 - Тестовый раннер: встроенный `node:test` через установленный `tsx` 4.23.15; новых зависимостей не требуется (NFR-9).
 - Prisma CLI 8.0.0-rc.22 — контур v8: `contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`; команд `prisma migrate dev` и `prisma db seed` нет (проверено `npx prisma --help`, `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma migration plan --help`, `npx prisma db --help`, `npx prisma db migrate --help`, `npx prisma db update --help`, `npx prisma migrate dev --help`).
+- Prisma 8: клиент Postgres — `@prisma/orm-postgres` (`npm view @prisma/orm-postgres version` → `8.0.0-rc.18`, описание «Prisma 8 for Postgres: the one package a Postgres application installs»); `postinstall` (`prisma skills sync`) кладёт скилл `prisma-8` в `.agents/skills`, `.claude/skills`, `.cursor/skills`, `.devin/skills`.
+- `prisma contract emit` без секции `orm` в `prisma.config.ts` падает: `CLI.CONFIG_SECTION_INVALID` + поля `orm.adapter`, `orm.family`, `orm.target` (проверено запуском из пустого каталога вне репозитория); по скиллу `prisma-8` каноническая раскладка v8 — `contract.prisma`, каталог `migrations/app/`, точка входа рантайма `db.ts` (проверка формы секций и путей — шаг 6).
+- `@prisma/orm-postgres` объявляет peer-зависимость `temporal-polyfill`: колонки `DateTime` возвращают значения `Temporal`, поэтому на шаге 6/8 нужен глобальный полифилл в серверной точке входа (скилл `prisma-8`, `references/runtime.md`).
+- `prisma db migrate --help` (проверено 16.10.2026): опции `--db <url>`, `--to <contract>`, `--advance-ref <name>`, `--show` (read-only превью маршрута), `--from <contract>`; глобальные — `--format`, `--json`, `--log-level`, `--verbose`, `--quiet`, `--yes`, `--confirm`, `--interactive`, `--color`, `--config`. Команда применяет уже лежащие на диске миграции («never invents an edge», «applies pending on-disk migrations»).
+- Прямой вызов `prisma` в PowerShell не работает: бинарник лежит в `node_modules\.bin` (`prisma.cmd` есть), но этот каталог не в `PATH` (проверено 16.10.2026). Запускать через `npx prisma …` или через npm-скрипты; для сеанса можно добавить `node_modules\.bin` в `PATH`.
 - `useActionState` доступен: в проекте React 19.3.0, экспорт из `react` есть (проверено `node -e "require('react').useActionState"` → `function`).
 
 ### 1.2 Целевой сценарий
@@ -83,11 +88,11 @@
 
 ## 4. Активный пункт
 
-**Шаг 4. Выровнять версии Prisma и подготовить `package.json`.**
+**Шаг 5. Подготовить окружение.**
 
-Блокирующее условие: схема, миграции и генерация клиента не создаются до выравнивания версий Prisma (шаг 4, CR-32).
+Блокирующее условие снято: версии Prisma зафиксированы на шаге 4 (CR-32), поэтому схема и миграции создаются после него (шаг 6).
 Правило порядка: список файлов и порядок правок зафиксированы на шаге 3; далее окружение и схема (шаги 5–6) идут до первого auth-кода (шаги 8–11).
-Основание: Шаг 3 закрыт — список файлов сверен со `spec.md` (раздел «Структура файлов»), команды Prisma 8 и API форм Next.js 16 подтверждены по справке CLI и `node_modules/next/dist/docs/`.
+Основание: Шаг 4 закрыт — версии Prisma зафиксированы точно (`prisma` 8.0.0-rc.22, `@prisma/orm-postgres` 8.0.0-rc.18), скрипты `db:migrate`, `db:seed`, `sessions:cleanup`, `test` добавлены, решение по клиенту Prisma 8 внесено в `spec.md`.
 
 ## 5. Шаги
 
@@ -155,20 +160,21 @@
   4. **Порядок правок**: окружение (шаг 5) → контракт и миграция (шаг 6) → seed (шаг 7) → `app/lib/*` (шаги 8–9) → `app/actions/auth.ts` (шаги 9–10) → страницы и формы (шаги 9–13) → тесты и `scripts/cleanup-sessions.ts` (шаги 13–14) → `README.md` (шаг 15).
 - Проверка: список совпадает с разделом «Структура файлов» в `spec.md` (строки 261–283), лишние файлы не выдуманы; выполнены `npx prisma --version` → `8.0.0-rc.22`, `npx prisma --help`, `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma migration plan --help`, `npx prisma db --help`, `npx prisma db migrate --help`, `npx prisma db update --help`, `npx prisma migrate dev --help` (команды нет: CLI печатает общую справку), `npx prisma db seed --help` (подкоманды нет: печатается справка группы `db`); `npm ls prisma @prisma/client` → `prisma@8.0.0-rc.22`, `@prisma/client@7.10.0`; `node -e "require('react')..."` → `react 19.3.0 useActionState: function`; `Get-ChildItem -Recurse app` → только `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `app/favicon.ico`.
 - Статус: `done`.
-- Ошибки: уточнение Шага 3 — команда `prisma migrate dev` в Prisma 8.0.0-rc.22 отсутствует, текст Шага 4 исправлен на `prisma migration plan` + `prisma db migrate`. Блокер CR-32 (рассинхрон `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0) не снят и остаётся в Шаге 4.
+- Ошибки: уточнение Шага 3 — команда `prisma migrate dev` в Prisma 8.0.0-rc.22 отсутствует, текст Шага 4 исправлен на `prisma migration plan` + `prisma db migrate`. Блокер CR-32 (рассинхрон `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0) на момент шага 3 не снят и перенесён в Шаг 4 — закрыт на шаге 4 решением A.
 - Следующий шаг: Шаг 4.
 
-### Шаг 4. Выровнять версии Prisma и подготовить `package.json` — `todo`
+### Шаг 4. Выровнять версии Prisma и подготовить `package.json` — `done`
 
-- [ ] В `package.json` привести `prisma` и `@prisma/client` к точной версии `8.0.0-rc.22` (без диапазона `^`).
-- [ ] Выполнить `npm install`; убедиться, что установленный клиент совпадает с CLI.
-- [ ] Добавить скрипты: `db:migrate` (`prisma migration plan` + `prisma db migrate`), `db:seed` (`tsx prisma/seed.ts`), `sessions:cleanup` (`tsx scripts/cleanup-sessions.ts`), `test` (`tsx --test tests/**/*.test.ts`).
-- Уточнение Шага 3: команд `prisma migrate dev` и `prisma db seed` в установленной версии CLI нет; миграция создаётся `prisma migration plan --name <slug>` и применяется `prisma db migrate`, seed остаётся `tsx`-скриптом (`spec.md`, строка 248). Если конфигурация не подхватывает `DATABASE_URL`, применять `prisma db migrate --db "$DATABASE_URL"` — фактические флаги подтвердить на шаге 6 через `prisma db migrate --help`.
+- [x] В `package.json` зафиксировать Prisma точными версиями без `^`: CLI `prisma` — `8.0.0-rc.22`, клиент `@prisma/orm-postgres` — `8.0.0-rc.18`; `@prisma/client` удалён (решение A, см. «Уточнение Шага 4» ниже).
+- [x] Выполнить `npm install`; убедиться, что установленные пакеты совпадают с записями в `package.json` (CLI `8.0.0-rc.22`, клиент `8.0.0-rc.18`).
+- [x] Добавить скрипты: `db:migrate` (`prisma migration plan` + `prisma db migrate`), `db:seed` (`tsx prisma/seed.ts`), `sessions:cleanup` (`tsx scripts/cleanup-sessions.ts`), `test` (`tsx --test tests/**/*.test.ts`).
+- Уточнение Шага 4 (блокер CR-32, решение A): исходная редакция требовала привести `prisma` и `@prisma/client` к одной версии `8.0.0-rc.22` — это невозможно: `npm view @prisma/client@8.0.0-rc.22 version` → 404, `npm view @prisma/client dist-tags` → `latest: 7.10.1` (линии 8.x у пакета нет), а в CLI Prisma 8 нет команды `prisma generate`. Клиент линии 8 — `@prisma/orm-postgres` («Prisma 8 for Postgres: the one package a Postgres application installs»), поэтому он занимает место `@prisma/client`, а обе записи Prisma фиксируются точно, без `^`. Решение согласовано с разработчиком и внесено в `spec.md` («Технологический стек», «Работа с Prisma», «Ограничения и допущения», CR-32, таблица самопроверки).
+- Уточнение Шага 3: команд `prisma migrate dev` и `prisma db seed` в установленной версии CLI нет; миграция создаётся `prisma migration plan --name <slug>` и применяется `prisma db migrate`, seed остаётся `tsx`-скриптом (`spec.md`, строка 248). Если конфигурация не подхватывает `DATABASE_URL`, применять `prisma db migrate --db "$DATABASE_URL"` — флаги подтверждены (`--db <url>`, `--show` (read-only превью), `--to`, `--advance-ref`, `--from`; см. §1.1), сама проверка остаётся шагом 6.
 - Действие: выровнять версии Prisma и подготовить команды проекта.
-- Результат: CLI и клиент на одной версии, есть команды миграции, seed, очистки сессий и тестов.
-- Проверка: `npx prisma --version`; обе записи версий в `package.json` совпадают; имена скриптов совпадают со `spec.md` (CR-32).
-- Статус: `todo`.
-- Ошибки: — (команда `prisma migrate dev` из ранней редакции шага исправлена по итогам Шага 3).
+- Результат: `prisma@8.0.0-rc.22` и `@prisma/orm-postgres@8.0.0-rc.18` установлены точными версиями, `@prisma/client` в проекте нет; добавлены `db:migrate`, `db:seed`, `sessions:cleanup`, `test`.
+- Проверка: `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0` → `@prisma/orm-postgres@8.0.0-rc.18`, `prisma@8.0.0-rc.22` (записи `@prisma/client` нет); `npx prisma --version` → `{"version":"8.0.0-rc.22"}`; `npm install` → `added 34 packages, and removed 2 packages`; `package.json` содержит `db:migrate`, `db:seed`, `sessions:cleanup`, `test` с именами из `spec.md` (строки 283, 303; CR-26, CR-32); `npm run lint` → 0 проблем (0 ошибок, 0 предупреждений) после исключения каталогов синхронизированных скиллов в `eslint.config.mjs`.
+- Статус: `done`.
+- Ошибки: блокер CR-32 закрыт решением A (см. «Уточнение Шага 4»); открытых ошибок нет. Замечено для шага 6: секция `orm` в `prisma.config.ts` обязательна для `prisma contract emit`; канонические пути v8 — `contract.prisma` и `migrations/app/`; колонки `DateTime` возвращают `Temporal` (нужен `temporal-polyfill`). Побочно: скилл `prisma-8` содержит `.ts`-файлы, из-за чего `npm run lint` давал 56 предупреждений из `.agents/skills`, `.claude/skills`, `.cursor/skills`, `.devin/skills`; каталоги добавлены в `globalIgnores` (`eslint.config.mjs`) — это единственная правка вне `package.json` и документации.
 - Следующий шаг: Шаг 5.
 
 ### Шаг 5. Подготовить окружение — `todo`
@@ -236,7 +242,7 @@
 ### Шаг 10. Реализовать сессию и выход — `todo`
 
 - [ ] `app/lib/session.ts`: генерация токена `crypto.randomBytes(32).toString('base64url')`, хранение в базе только SHA-256 (`tokenHash`), `expiresAt` = создание + `SESSION_TTL_SECONDS`, cookie `mb_session` с обязательными `HttpOnly` и `Secure`, содержащая только токен.
-- [ ] `app/lib/env.ts`: чтение и проверка окружения, включая положительное числовое `SESSION_TTL_SECONDS`; `app/lib/db.ts`: единственный экземпляр `PrismaClient`.
+- [ ] `app/lib/env.ts`: чтение и проверка окружения, включая положительное числовое `SESSION_TTL_SECONDS`; `app/lib/db.ts`: единственный экземпляр клиента Prisma 8 (`db` из `@prisma/orm-postgres/runtime`).
 - [ ] `app/lib/password.ts`: только `hash(password, 12)` и `compare(password, passwordHash)`.
 - [ ] `app/actions/auth.ts`: `logout` — удаление записи сессии по `tokenHash`, удаление cookie, `redirect('/login')`.
 - [ ] Не логировать пароли и токены.
@@ -328,8 +334,8 @@
 
 - `spec.md` — источник требований к `auth-lite` и границы урока (FR, NFR, CR-1…CR-32).
 - `AGENTS.md` — правила работы агента в проекте (обновляется на шаге 2).
-- `prisma.config.ts` — конфигурация Prisma; команды уточнены на шаге 3 (`prisma contract emit`, `prisma migration plan`, `prisma db migrate`), форма секций (PSL-файл, каталог миграций) проверяется на шаге 6 (`spec.md`, строка 247).
-- `package.json` — команды `dev`, `build`, `start`, `lint` и добавляемые `db:migrate`, `db:seed`, `sessions:cleanup`, `test`.
+- `prisma.config.ts` — конфигурация Prisma; команды уточнены на шаге 3 (`prisma contract emit`, `prisma migration plan`, `prisma db migrate`). На шаге 6: секция `orm` (`adapter`, `family`, `target`) обязательна — без неё `prisma contract emit` падает с `CLI.CONFIG_SECTION_INVALID`; там же подтверждаются пути PSL-файла и каталога миграций (в v8 по скиллу `prisma-8` — `contract.prisma` и `migrations/app/`) (`spec.md`, строка 247).
+- `package.json` — команды `dev`, `build`, `start`, `lint`, `postinstall` и добавленные на шаге 4 `db:migrate` (`prisma migration plan` + `prisma db migrate`), `db:seed` (`tsx prisma/seed.ts`), `sessions:cleanup` (`tsx scripts/cleanup-sessions.ts`), `test` (`tsx --test tests/**/*.test.ts`); зависимости Prisma зафиксированы точно: `prisma` `8.0.0-rc.22`, `@prisma/orm-postgres` `8.0.0-rc.18`, `@prisma/client` не используется.
 - `.env` / `.env.example` / `.env.test` — локальное окружение без публикации секретов; `.env.test` — отдельная тестовая база.
 - `prisma/schema.prisma` — модель `User` (роль, `passwordHash`), модель `Session` (сессия в базе).
 - Prisma-миграция и `prisma/seed.ts` — воспроизводимость базы и ровно один `super_admin`.
@@ -348,6 +354,8 @@
 | 16.10.2026 | Шаг 1. Зафиксировать `spec.md` | Сверить роли, `passwordHash`, границы и CR | `spec.md` содержит роли `guest`, `user`, `admin`, `super_admin`, запрет plain text пароля и CR-1…CR-32 |
 | 16.10.2026 | Шаг 2. Обновить `AGENTS.md` под auth-фазу | Правила auth-фазы, запрет соседних доменов, `hasCurrentAgentRules()`, `npm run lint`, `npm run build` | `AGENTS.md`: правила `auth-lite`, запрет slots/bookings/notifications, внешних каналов, deploy и административных функций, обязательный цикл, разделение зон `spec.md`/`AGENTS.md`, правило справки Prisma CLI и `node_modules/next/dist/docs/`; блок `nextjs-agent-rules` восстановлен, `hasCurrentAgentRules()` → `true`, lint и build без ошибок |
 | 16.10.2026 | Шаг 3. Найти реальные точки изменения | Сверка с `spec.md` (строки 261–283), справка Prisma CLI 8, `npm ls prisma @prisma/client`, `node -e` (React 19.3.0), `node_modules/next/dist/docs/` | Список файлов подтверждён без лишних файлов; команды Prisma 8 — `contract emit`, `migration plan`, `db migrate`/`db update` (команд `migrate dev` и `db seed` нет → правка Шага 4); формы — `useActionState` из `react`, `redirect` вне `try/catch`, `cookies()` только внутри `<Suspense>`; порядок правок: окружение → схема и миграция → seed → lib → actions → страницы → тесты → README |
+
+| 16.10.2026 | Шаг 4. Выровнять версии Prisma и подготовить `package.json` | `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0`, `npx prisma --version`, `npm install`, `npm view @prisma/client dist-tags` | Версии зафиксированы точно, без `^`: `prisma@8.0.0-rc.22` + `@prisma/orm-postgres@8.0.0-rc.18`; `@prisma/client` удалён (линии 8.x нет, в v8 нет `prisma generate`): блокер CR-32 закрыт решением A, `spec.md` обновлён; добавлены скрипты `db:migrate`, `db:seed`, `sessions:cleanup`, `test` |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 

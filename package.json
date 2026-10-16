@@ -7,13 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "db:migrate": "prisma migration plan && prisma db migrate",
+    "db:seed": "tsx prisma/seed.ts",
+    "sessions:cleanup": "tsx scripts/cleanup-sessions.ts",
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
-    "@prisma/client": "^7.10.0",
+    "@prisma/orm-postgres": "8.0.0-rc.18",
     "bcryptjs": "^3.0.3",
     "next": "16.4.1",
-    "prisma": "^8.0.0-rc.22",
+    "prisma": "8.0.0-rc.22",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "^4.6.7"
