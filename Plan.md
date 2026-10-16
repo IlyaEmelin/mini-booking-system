@@ -10,19 +10,21 @@
 - Цель цикла: собрать минимальный `auth-lite`-фрагмент, который продолжится в уроках 4.3.3 и 4.3.4.
 - Ограничение объёма: не расширять продукт до слотов, бронирований, уведомлений, полного booking flow, внешних каналов (OAuth, email, SMS, calendar, desktop) и деплоя; административные функции не реализуются, `/admin` — только проверка роли.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
-- Сейчас в работе: **Шаг 5. Подготовить окружение** (шаги 0–4 закрыты).
-- Последняя проверка: Шаг 4 — `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0` → `@prisma/orm-postgres@8.0.0-rc.18`, `prisma@8.0.0-rc.22` (записи `@prisma/client` нет); `npx prisma --version` → `{"version":"8.0.0-rc.22"}`; `npm install` → `added 34 packages, and removed 2 packages`; `npm view @prisma/client dist-tags` → `latest: 7.10.1`, `npm view @prisma/client@8.0.0-rc.22 version` → 404; `postinstall` (`prisma skills sync`) → скиллы `prisma-8`, `prisma-composer-core-concepts`, `prisma-platform-core-concepts`. Ранее, на Шаге 3 — список файлов сверен с разделом «Структура файлов» `spec.md` (строки 261–283), лишних файлов нет; справка Prisma CLI 8 прочитана (`contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`); документация Next.js 16 прочитана (`01-app/02-guides/forms.md`, `01-app/03-api-reference/04-functions/redirect.md`, `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`, `01-app/02-guides/authentication-with-cache-components.md`); выяснено, что команд `prisma migrate dev` и `prisma db seed` в этой версии CLI нет.
-- Ошибки и блокеры: открытых нет. Блокер CR-32 закрыт на шаге 4 (решение A): `@prisma/client` удалён, его место занимает клиент Prisma 8 `@prisma/orm-postgres`, обе записи Prisma в `package.json` точные. Учтено для шага 6: `prisma contract emit` требует секцию `orm` (`adapter`, `family`, `target`) в `prisma.config.ts`, иначе `CLI.CONFIG_SECTION_INVALID`; команды `prisma generate` в Prisma 8 нет; команда `prisma migrate dev` отсутствует — заменена на `prisma migration plan` + `prisma db migrate` (уточнение Шага 3).
-- Следующий шаг после активного: Шаг 6. Создать Prisma-контракт и миграцию.
+- Сейчас в работе: **Шаг 6. Создать Prisma-контракт и миграцию** (шаги 0–5 закрыты).
+- Последняя проверка: Шаг 5 — `git check-ignore -v .env .env.test` → оба пути совпадают с правилом `.gitignore:34:.env*`; `git check-ignore -v .env.example` → файл не игнорируется (exit code 1); в `.env.example` `SEED_SUPER_ADMIN_PASSWORD="<change-me-for-local-development>"` — заглушка, а не рабочий пароль (CR-27); список переменных `.env` и `.env.example` совпадает: `DATABASE_URL`, `SESSION_TTL_SECONDS`, `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD`; в `.env` заполнены все четыре переменные, `SESSION_TTL_SECONDS="604800"` — положительное целое, пароль непустой и не равен заглушке; создан локальный `.env.test` с отдельной базой `mini-booking-system_test` и теми же именами переменных; `pg_isready -h localhost -p 5432` → `accepting connections`. Ранее, на Шаге 4 — `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0` → `@prisma/orm-postgres@8.0.0-rc.18`, `prisma@8.0.0-rc.22` (записи `@prisma/client` нет); `npx prisma --version` → `{"version":"8.0.0-rc.22"}`; `npm install` → `added 34 packages, and removed 2 packages`; `npm view @prisma/client dist-tags` → `latest: 7.10.1`, `npm view @prisma/client@8.0.0-rc.22 version` → 404; `postinstall` (`prisma skills sync`) → скиллы `prisma-8`, `prisma-composer-core-concepts`, `prisma-platform-core-concepts`. Ранее, на Шаге 3 — список файлов сверен с разделом «Структура файлов» `spec.md` (строки 261–283), лишних файлов нет; справка Prisma CLI 8 прочитана (`contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`); документация Next.js 16 прочитана (`01-app/02-guides/forms.md`, `01-app/03-api-reference/04-functions/redirect.md`, `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`, `01-app/02-guides/authentication-with-cache-components.md`); выяснено, что команд `prisma migrate dev` и `prisma db seed` в этой версии CLI нет.
+- Ошибки и блокеры: открытых нет. Блокер CR-32 закрыт на шаге 4 (решение A): `@prisma/client` удалён, его место занимает клиент Prisma 8 `@prisma/orm-postgres`, обе записи Prisma в `package.json` точные. Учтено для шага 6: `prisma contract emit` требует секцию `orm` (`adapter`, `family`, `target`) в `prisma.config.ts`, иначе `CLI.CONFIG_SECTION_INVALID`; команды `prisma generate` в Prisma 8 нет; команда `prisma migrate dev` отсутствует — заменена на `prisma migration plan` + `prisma db migrate` (уточнение Шага 3). Найдено на шаге 5 (не блокер шага 5, нужно к шагам 6 и 12): в локальном PostgreSQL 18 базы `mini-booking-system_dev` и `mini-booking-system_test` ещё не созданы — `psql` показывает только `postgres`, `crm_exhibition_dev`, `template0`, `template1`; до `npm run db:migrate` (шаг 6) нужна база разработки, до `npm test` (шаг 12) — тестовая; создание баз выполняет разработчик.
+- Следующий шаг после активного: Шаг 7. Создать seed ровно одного `super_admin`.
 
 ### 1.1 Сверка с репозиторием (факты, проверено)
 
-- Есть: `spec.md`, `AGENTS.md`, `prisma.config.ts`, `.env`, `.env.example`, `.gitignore`, `README.md` (шаблонный), `app/layout.tsx`, `app/page.tsx` (стартовый экран), `app/globals.css`, `app/favicon.ico`.
+- Есть: `spec.md`, `AGENTS.md`, `prisma.config.ts`, `.env`, `.env.example`, `.env.test` (создан на шаге 5), `.gitignore`, `README.md` (шаблонный), `app/layout.tsx`, `app/page.tsx` (стартовый экран), `app/globals.css`, `app/favicon.ico`.
 - Нет: `prisma/schema.prisma`, `prisma/migrations`, каталогов `app/lib/`, `app/actions/`, `app/ui/`, `tests/`, `scripts/`.
 - npm-скрипты есть: `dev`, `build`, `start`, `lint`, `postinstall`, `db:migrate`, `db:seed`, `sessions:cleanup`, `test` (четыре последних добавлены на шаге 4).
 - Версии Prisma (шаг 4): установлены `prisma` 8.0.0-rc.22 и `@prisma/orm-postgres` 8.0.0-rc.18, обе записи в `package.json` точные, без `^`; `@prisma/client` удалён (`npm view @prisma/client dist-tags` → `latest: 7.10.1`, `@prisma/client@8.0.0-rc.22` → 404).
-- `.env.example` содержит рабочий placeholder-пароль `SEED_SUPER_ADMIN_PASSWORD="password"` — по CR-27 недопустимо (шаг 5).
+- `.env.example` (шаг 5): `SEED_SUPER_ADMIN_PASSWORD="<change-me-for-local-development>"` — заглушка вместо рабочего пароля (CR-27); `DATABASE_URL` — нерабочая заглушка `postgresql://<login>:<password>@localhost:5432/mini-booking-system_dev`; `SESSION_TTL_SECONDS="604800"`.
 - `.env` и `.env.test` игнорируются шаблоном `.env*` из `.gitignore`; `.env.example` из-под шаблона исключён (проверено `git check-ignore`).
+- Локальное окружение (шаг 5): `.env` содержит все четыре обязательные переменные; `.env.test` создан с отдельной базой `mini-booking-system_test` и теми же именами переменных. Next.js `.env.test` не читает: файл нужен только тестовому прогону (`NODE_ENV=test`, шаг 12).
+- Локальный PostgreSQL 18 доступен (`pg_isready -h localhost -p 5432` → `accepting connections`), но баз `mini-booking-system_dev` и `mini-booking-system_test` в нём ещё нет: `psql` показывает только `postgres`, `crm_exhibition_dev`, `template0`, `template1` (шаг 5, требование к шагам 6 и 12).
 - `AGENTS.md` содержит управляемый блок `nextjs-agent-rules`, правила auth-фазы, правила Git и обязательный цикл работы: шаг 2 закрыт.
 - Version-специфика: Next.js 16.4.1, Turbopack, Cache Components; перед кодом читать `node_modules/next/dist/docs/` (правило `AGENTS.md`).
 - Тестовый раннер: встроенный `node:test` через установленный `tsx` 4.23.15; новых зависимостей не требуется (NFR-9).
@@ -88,11 +90,12 @@
 
 ## 4. Активный пункт
 
-**Шаг 5. Подготовить окружение.**
+**Шаг 6. Создать Prisma-контракт и миграцию.**
 
-Блокирующее условие снято: версии Prisma зафиксированы на шаге 4 (CR-32), поэтому схема и миграции создаются после него (шаг 6).
-Правило порядка: список файлов и порядок правок зафиксированы на шаге 3; далее окружение и схема (шаги 5–6) идут до первого auth-кода (шаги 8–11).
-Основание: Шаг 4 закрыт — версии Prisma зафиксированы точно (`prisma` 8.0.0-rc.22, `@prisma/orm-postgres` 8.0.0-rc.18), скрипты `db:migrate`, `db:seed`, `sessions:cleanup`, `test` добавлены, решение по клиенту Prisma 8 внесено в `spec.md`.
+Блокирующее условие снято: версии Prisma зафиксированы на шаге 4 (CR-32), окружение подготовлено на шаге 5, поэтому контракт и миграция создаются сейчас (шаг 6).
+Правило порядка: список файлов и порядок правок зафиксированы на шаге 3; далее контракт и миграция (шаг 6), seed (шаг 7) и только затем первый auth-код (шаги 8–11).
+Основание: Шаг 5 закрыт — `.env.example` приведён к CR-27 (заглушка вместо рабочего пароля), локальный `.env` проверен, `.env.test` создан с отдельной тестовой базой `mini-booking-system_test`.
+Перед контрактом: добавить в `prisma.config.ts` секцию `orm` (`adapter`, `family`, `target`), иначе `prisma contract emit` завершится `CLI.CONFIG_SECTION_INVALID`; база `mini-booking-system_dev` должна существовать до `prisma db migrate`.
 
 ## 5. Шаги
 
@@ -177,15 +180,17 @@
 - Ошибки: блокер CR-32 закрыт решением A (см. «Уточнение Шага 4»); открытых ошибок нет. Замечено для шага 6: секция `orm` в `prisma.config.ts` обязательна для `prisma contract emit`; канонические пути v8 — `contract.prisma` и `migrations/app/`; колонки `DateTime` возвращают `Temporal` (нужен `temporal-polyfill`). Побочно: скилл `prisma-8` содержит `.ts`-файлы, из-за чего `npm run lint` давал 56 предупреждений из `.agents/skills`, `.claude/skills`, `.cursor/skills`, `.devin/skills`; каталоги добавлены в `globalIgnores` (`eslint.config.mjs`) — это единственная правка вне `package.json` и документации.
 - Следующий шаг: Шаг 5.
 
-### Шаг 5. Подготовить окружение — `todo`
+### Шаг 5. Подготовить окружение — `done`
 
-- [ ] В `.env.example` заменить рабочий placeholder-пароль на заглушку `<change-me-for-local-development>`; оставить `SESSION_TTL_SECONDS=604800`.
-- [ ] Проверить локальный `.env` (в репозиторий не попадает): `DATABASE_URL`, `SESSION_TTL_SECONDS`, `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD`.
-- [ ] Подготовить локальный `.env.test` с отдельным `DATABASE_URL` для тестов (файл игнорируется Git).
+- [x] В `.env.example` заменить рабочий placeholder-пароль на заглушку `<change-me-for-local-development>`; оставить `SESSION_TTL_SECONDS=604800`.
+- [x] Проверить локальный `.env` (в репозиторий не попадает): `DATABASE_URL`, `SESSION_TTL_SECONDS`, `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD`.
+- [x] Подготовить локальный `.env.test` с отдельным `DATABASE_URL` для тестов (файл игнорируется Git).
 - Действие: привести переменные окружения в соответствие с `spec.md`.
 - Результат: локальное окружение и шаблон `.env.example` безопасны и полны.
-- Проверка: `git check-ignore .env .env.test` подтверждает игнорирование; `git check-ignore .env.example` файл не игнорирует; список переменных в `.env` и `.env.example` совпадает (CR-27).
-- Статус: `todo`.
+- Заметка: `.env.test` подключается только тестовым прогоном (`NODE_ENV=test`, шаг 12); `next dev` и `next build` его не читают, поэтому локальная разработка продолжает работать с `.env`. Имена переменных в `.env.test` совпадают с `.env` и `.env.example`.
+- Заметка для шага 6: локальные базы `mini-booking-system_dev` и `mini-booking-system_test` в PostgreSQL ещё не созданы; база разработки нужна до `npm run db:migrate`, тестовая — до `npm test`. Создание баз выполняет разработчик.
+- Проверка: `git check-ignore -v .env .env.test` → оба пути совпадают с правилом `.gitignore:34:.env*`; `git check-ignore -v .env.example` → файл не игнорируется (exit code 1); список переменных в `.env`, `.env.example` и `.env.test` совпадает (`DATABASE_URL`, `SESSION_TTL_SECONDS`, `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD`); `SEED_SUPER_ADMIN_PASSWORD` в `.env.example` — заглушка `<change-me-for-local-development>`, в `.env` — непустое значение, отличное от заглушки; `SESSION_TTL_SECONDS` — положительное целое; `pg_isready -h localhost -p 5432` → `accepting connections` (CR-27, NFR-12).
+- Статус: `done`.
 - Ошибки: —
 - Следующий шаг: Шаг 6.
 
@@ -283,7 +288,7 @@
 
 ### Шаг 13. Обновить `README.md` — `todo`
 
-- [ ] Описать: копирование `.env.example` → `.env` и заполнение значений (включая замену заглушки seed-пароля), `npm run db:migrate`, `npm run db:seed`, `npm run dev`, `npm test`, `npm run sessions:cleanup`.
+- [ ] Описать: создание локальных баз (`createdb mini-booking-system_dev` и `createdb mini-booking-system_test`), копирование `.env.example` → `.env` и заполнение значений (включая замену заглушки seed-пароля, которую seed отклоняет), `npm run db:migrate`, `npm run db:seed`, `npm run dev`, `npm test` (тестовая база и её строка подключения — из локального `.env.test`), `npm run sessions:cleanup`.
 - [ ] Описать роли, способ появления `super_admin` и smoke-тест auth-контура (регистрация → вход → аккаунт → выход).
 - [ ] Убедиться, что имена скриптов совпадают со `spec.md`; секретов в `README.md` нет.
 - Действие: обновить runbook фактическими командами и результатами проверки.
@@ -354,8 +359,8 @@
 | 16.10.2026 | Шаг 1. Зафиксировать `spec.md` | Сверить роли, `passwordHash`, границы и CR | `spec.md` содержит роли `guest`, `user`, `admin`, `super_admin`, запрет plain text пароля и CR-1…CR-32 |
 | 16.10.2026 | Шаг 2. Обновить `AGENTS.md` под auth-фазу | Правила auth-фазы, запрет соседних доменов, `hasCurrentAgentRules()`, `npm run lint`, `npm run build` | `AGENTS.md`: правила `auth-lite`, запрет slots/bookings/notifications, внешних каналов, deploy и административных функций, обязательный цикл, разделение зон `spec.md`/`AGENTS.md`, правило справки Prisma CLI и `node_modules/next/dist/docs/`; блок `nextjs-agent-rules` восстановлен, `hasCurrentAgentRules()` → `true`, lint и build без ошибок |
 | 16.10.2026 | Шаг 3. Найти реальные точки изменения | Сверка с `spec.md` (строки 261–283), справка Prisma CLI 8, `npm ls prisma @prisma/client`, `node -e` (React 19.3.0), `node_modules/next/dist/docs/` | Список файлов подтверждён без лишних файлов; команды Prisma 8 — `contract emit`, `migration plan`, `db migrate`/`db update` (команд `migrate dev` и `db seed` нет → правка Шага 4); формы — `useActionState` из `react`, `redirect` вне `try/catch`, `cookies()` только внутри `<Suspense>`; порядок правок: окружение → схема и миграция → seed → lib → actions → страницы → тесты → README |
-
 | 16.10.2026 | Шаг 4. Выровнять версии Prisma и подготовить `package.json` | `npm ls prisma @prisma/orm-postgres @prisma/client --depth=0`, `npx prisma --version`, `npm install`, `npm view @prisma/client dist-tags` | Версии зафиксированы точно, без `^`: `prisma@8.0.0-rc.22` + `@prisma/orm-postgres@8.0.0-rc.18`; `@prisma/client` удалён (линии 8.x нет, в v8 нет `prisma generate`): блокер CR-32 закрыт решением A, `spec.md` обновлён; добавлены скрипты `db:migrate`, `db:seed`, `sessions:cleanup`, `test` |
+| 16.10.2026 | Шаг 5. Подготовить окружение | `git check-ignore -v .env .env.test .env.example`, сверка списка переменных `.env` / `.env.example` / `.env.test`, `pg_isready -h localhost -p 5432` | `.env.example`: `SEED_SUPER_ADMIN_PASSWORD` заменён с рабочего пароля на заглушку `<change-me-for-local-development>` (CR-27), остальные строки без изменений; локальный `.env` проверен — все четыре переменные заполнены, `SESSION_TTL_SECONDS="604800"` положительное целое; создан локальный `.env.test` с отдельной базой `mini-booking-system_test` и теми же именами переменных; `.env` и `.env.test` игнорируются Git, `.env.example` — нет; PostgreSQL принимает соединения, но базы `mini-booking-system_dev` и `mini-booking-system_test` ещё не созданы (передано шагам 6 и 12) |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 
