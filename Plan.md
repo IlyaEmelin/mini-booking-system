@@ -10,22 +10,24 @@
 - Цель цикла: собрать минимальный `auth-lite`-фрагмент, который продолжится в уроках 4.3.3 и 4.3.4.
 - Ограничение объёма: не расширять продукт до слотов, бронирований, уведомлений, полного booking flow, внешних каналов (OAuth, email, SMS, calendar, desktop) и деплоя; административные функции не реализуются, `/admin` — только проверка роли.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
-- Сейчас в работе: **Шаг 3. Найти реальные точки изменения** (шаги 0–2 закрыты).
-- Последняя проверка: Шаг 2 — `AGENTS.md` содержит правила auth-фазы, запрет соседних доменов, обязательный цикл и правило сверяться со справкой Prisma CLI и документацией Next.js 16; управляемый блок `nextjs-agent-rules` восстановлен, `hasCurrentAgentRules()` → `true`; `npm run lint` — без ошибок; `npm run build` — успешно (Next.js 16.4.1, Turbopack, маршруты `/` и `/_not-found`).
-- Ошибки и блокеры: до выравнивания версий Prisma (шаг 4) схема, миграции и генерация клиента не создаются (CR-32).
-- Следующий шаг после активного: Шаг 4. Выровнять версии Prisma и подготовить `package.json`.
+- Сейчас в работе: **Шаг 4. Выровнять версии Prisma и подготовить `package.json`** (шаги 0–3 закрыты).
+- Последняя проверка: Шаг 3 — список файлов сверен с разделом «Структура файлов» `spec.md` (строки 261–283), лишних файлов нет; справка Prisma CLI 8 прочитана (`contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`); документация Next.js 16 прочитана (`01-app/02-guides/forms.md`, `01-app/03-api-reference/04-functions/redirect.md`, `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`, `01-app/02-guides/authentication-with-cache-components.md`); выяснено, что команд `prisma migrate dev` и `prisma db seed` в этой версии CLI нет.
+- Ошибки и блокеры: до выравнивания версий Prisma (шаг 4) схема, миграции и генерация клиента не создаются (CR-32); команда `prisma migrate dev`, записанная ранее в Шаге 4, в Prisma 8.0.0-rc.22 отсутствует — заменена на `prisma migration plan` + `prisma db migrate` (уточнение Шага 3).
+- Следующий шаг после активного: Шаг 5. Подготовить окружение.
 
 ### 1.1 Сверка с репозиторием (факты, проверено)
 
 - Есть: `spec.md`, `AGENTS.md`, `prisma.config.ts`, `.env`, `.env.example`, `.gitignore`, `README.md` (шаблонный), `app/layout.tsx`, `app/page.tsx` (стартовый экран), `app/globals.css`, `app/favicon.ico`.
 - Нет: `prisma/schema.prisma`, `prisma/migrations`, каталогов `app/lib/`, `app/actions/`, `app/ui/`, `tests/`, `scripts/`.
 - npm-скрипты есть: `dev`, `build`, `start`, `lint`, `postinstall`. Нет: `db:migrate`, `db:seed`, `sessions:cleanup`, `test` (шаг 4).
-- Версии Prisma рассинхронизированы: установлены `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0 (шаг 4).
+- Версии Prisma рассинхронизированы: установлены `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0 (`npm ls prisma @prisma/client`, `npx prisma --version`; шаг 4).
 - `.env.example` содержит рабочий placeholder-пароль `SEED_SUPER_ADMIN_PASSWORD="password"` — по CR-27 недопустимо (шаг 5).
 - `.env` и `.env.test` игнорируются шаблоном `.env*` из `.gitignore`; `.env.example` из-под шаблона исключён (проверено `git check-ignore`).
 - `AGENTS.md` содержит управляемый блок `nextjs-agent-rules`, правила auth-фазы, правила Git и обязательный цикл работы: шаг 2 закрыт.
 - Version-специфика: Next.js 16.4.1, Turbopack, Cache Components; перед кодом читать `node_modules/next/dist/docs/` (правило `AGENTS.md`).
 - Тестовый раннер: встроенный `node:test` через установленный `tsx` 4.23.15; новых зависимостей не требуется (NFR-9).
+- Prisma CLI 8.0.0-rc.22 — контур v8: `contract emit`, `migration plan`, `db migrate`, `db update`, `db verify`/`db sign`; команд `prisma migrate dev` и `prisma db seed` нет (проверено `npx prisma --help`, `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma migration plan --help`, `npx prisma db --help`, `npx prisma db migrate --help`, `npx prisma db update --help`, `npx prisma migrate dev --help`).
+- `useActionState` доступен: в проекте React 19.3.0, экспорт из `react` есть (проверено `node -e "require('react').useActionState"` → `function`).
 
 ### 1.2 Целевой сценарий
 
@@ -81,10 +83,11 @@
 
 ## 4. Активный пункт
 
-**Шаг 3. Найти реальные точки изменения.**
+**Шаг 4. Выровнять версии Prisma и подготовить `package.json`.**
 
 Блокирующее условие: схема, миграции и генерация клиента не создаются до выравнивания версий Prisma (шаг 4, CR-32).
-Правило порядка: список файлов и порядок правок (шаг 3) фиксируются до изменений окружения и схемы (шаги 4–6) и до первого auth-кода (шаги 8–11).
+Правило порядка: список файлов и порядок правок зафиксированы на шаге 3; далее окружение и схема (шаги 5–6) идут до первого auth-кода (шаги 8–11).
+Основание: Шаг 3 закрыт — список файлов сверен со `spec.md` (раздел «Структура файлов»), команды Prisma 8 и API форм Next.js 16 подтверждены по справке CLI и `node_modules/next/dist/docs/`.
 
 ## 5. Шаги
 
@@ -127,29 +130,45 @@
 - Ошибки: нет.
 - Следующий шаг: Шаг 3.
 
-### Шаг 3. Найти реальные точки изменения — `in_progress`
+### Шаг 3. Найти реальные точки изменения — `done`
 
-- [ ] Подтвердить по `spec.md` и фактическому дереву проекта список файлов: `prisma/schema.prisma`, `prisma/seed.ts`, `app/lib/*`, `app/actions/auth.ts`, `app/ui/*-form.tsx`, страницы `/`, `/register`, `/login`, `/account`, `/admin`, `/access-denied`, `scripts/cleanup-sessions.ts`, `tests/`.
-- [ ] Уточнить синтаксис команд Prisma: `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma db --help`.
-- [ ] Сверить API форм Next.js 16 по `node_modules/next/dist/docs/` (`useActionState`, Server Actions, `redirect`, Cache Components).
-- [ ] Записать порядок правок: окружение → схема и миграция → seed → lib → actions → страницы → тесты → README.
+- [x] Подтвердить по `spec.md` и фактическому дереву проекта список файлов: `prisma/schema.prisma`, `prisma/seed.ts`, `app/lib/*`, `app/actions/auth.ts`, `app/ui/*-form.tsx`, страницы `/`, `/register`, `/login`, `/account`, `/admin`, `/access-denied`, `scripts/cleanup-sessions.ts`, `tests/`.
+- [x] Уточнить синтаксис команд Prisma: `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma db --help`.
+- [x] Сверить API форм Next.js 16 по `node_modules/next/dist/docs/` (`useActionState`, Server Actions, `redirect`, Cache Components).
+- [x] Записать порядок правок: окружение → схема и миграция → seed → lib → actions → страницы → тесты → README.
 - Действие: определить файлы для страниц auth, Server Actions, Prisma-схемы, seed, session helpers и role checks.
-- Результат: до кода есть список файлов-кандидатов и порядок правок.
-- Проверка: список совпадает с разделом «Структура файлов» в `spec.md`, лишние файлы не выдуманы.
-- Статус: `in_progress`.
-- Ошибки: —
+- Результат:
+  1. **Список файлов** — сверен со `spec.md`, раздел «Структура файлов (плановая)», строки 261–283; лишних файлов нет:
+     - `prisma/schema.prisma` — новый: PSL-контракт `User`, `Session`, `enum Role` (шаг 6); `prisma/migrations/` — новый каталог, хранится в репозитории (шаг 6).
+     - `prisma/seed.ts` — новый: идемпотентный `super_admin` из `SEED_SUPER_ADMIN_*` (шаг 7).
+     - `app/lib/` — новый каталог: `db.ts`, `env.ts`, `password.ts`, `session.ts`, `auth.ts`, `validation.ts` (шаги 8–9).
+     - `app/actions/auth.ts` — новый: `register`, `login`, `logout` под `'use server'` (шаги 9–10).
+     - `app/ui/` — новый каталог: `register-form.tsx`, `login-form.tsx`, `logout-button.tsx` (шаги 9–12).
+     - Страницы: `app/page.tsx` — правится (ссылки на `/login` и `/register`); новые `app/register/page.tsx`, `app/login/page.tsx`, `app/account/page.tsx`, `app/admin/page.tsx`, `app/access-denied/page.tsx` (шаги 9–13).
+     - `scripts/cleanup-sessions.ts` — новый (шаг 13); `tests/` — новый каталог (шаг 14).
+     - `package.json` — правится: версии Prisma и скрипты (шаг 4); `.env.example` — правится, `.env` и `.env.test` — локальные (шаг 5).
+     - `prisma.config.ts` — правится только если v8 требует явно указать PSL-файл или каталог миграций (проверка на шаге 6; `spec.md`, строка 247).
+     - Не создаются: `proxy.ts`/`middleware.ts` (`spec.md`, строка 253), `app/api/*`, модели и страницы slots, bookings, notifications (вне фазы).
+     - Фактическое дерево: в `app/` только `layout.tsx`, `page.tsx`, `globals.css`, `favicon.ico`; каталогов `app/lib/`, `app/actions/`, `app/ui/`, `tests/`, `scripts/`, `prisma/` нет.
+  2. **Команды Prisma 8.0.0-rc.22** (подтверждено справкой CLI): контракт — `npx prisma contract emit` (PSL → `contract.json`, `contract.d.ts`); новая миграция — `npx prisma migration plan --name <slug>` (пакет из изменений контракта, offline, на пустом каталоге baseline от `db`-ref); применение — `npx prisma db migrate` (по on-disk миграциями) либо `npx prisma db update` (по контракту, есть `--dry-run`); состояние — `npx prisma migration status|list|log|check`, `npx prisma db verify|sign`. Команд `prisma migrate dev` и `prisma db seed` нет: `npm run db:migrate` = `prisma migration plan` + `prisma db migrate`, seed остаётся скриптом `tsx prisma/seed.ts` (`spec.md`, строка 248).
+  3. **API форм Next.js 16 / React 19** (прочитано в `node_modules/next/dist/docs/`): `useActionState` из `react` — `const [state, formAction, pending] = useActionState(action, initialState)`, `<form action={formAction}>`, `pending` отключает кнопку отправки, ошибки рендерятся из `state` (`aria-live="polite"`) — `01-app/02-guides/forms.md`, строки 190–296; сигнатура Server Action с `useActionState` — `(prevState, formData)` — `forms.md`, строка 194, `01-app/01-getting-started/07-mutating-data.md`, `10-error-handling.md`; `redirect` из `next/navigation` вызывается вне `try/catch` (бросает `NEXT_REDIRECT`), в Server Action по умолчанию `push`, при progressive enhancement — 303 — `01-app/03-api-reference/04-functions/redirect.md`, строки 10–56; Cache Components (`cacheComponents: true`, `partialPrefetching: true` уже в `next.config.ts`) требует читать `cookies()` только внутри `<Suspense>` (иначе ошибка сборки), кеширование — через `use cache` / `use cache: private` / `cacheTag` / `cacheLife`, при этом проверки доступа не кешируются (`spec.md`, NFR-7) — `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md` и `01-app/02-guides/authentication-with-cache-components.md`, строки 18–117.
+  4. **Порядок правок**: окружение (шаг 5) → контракт и миграция (шаг 6) → seed (шаг 7) → `app/lib/*` (шаги 8–9) → `app/actions/auth.ts` (шаги 9–10) → страницы и формы (шаги 9–13) → тесты и `scripts/cleanup-sessions.ts` (шаги 13–14) → `README.md` (шаг 15).
+- Проверка: список совпадает с разделом «Структура файлов» в `spec.md` (строки 261–283), лишние файлы не выдуманы; выполнены `npx prisma --version` → `8.0.0-rc.22`, `npx prisma --help`, `npx prisma contract --help`, `npx prisma migration --help`, `npx prisma migration plan --help`, `npx prisma db --help`, `npx prisma db migrate --help`, `npx prisma db update --help`, `npx prisma migrate dev --help` (команды нет: CLI печатает общую справку), `npx prisma db seed --help` (подкоманды нет: печатается справка группы `db`); `npm ls prisma @prisma/client` → `prisma@8.0.0-rc.22`, `@prisma/client@7.10.0`; `node -e "require('react')..."` → `react 19.3.0 useActionState: function`; `Get-ChildItem -Recurse app` → только `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `app/favicon.ico`.
+- Статус: `done`.
+- Ошибки: уточнение Шага 3 — команда `prisma migrate dev` в Prisma 8.0.0-rc.22 отсутствует, текст Шага 4 исправлен на `prisma migration plan` + `prisma db migrate`. Блокер CR-32 (рассинхрон `prisma` 8.0.0-rc.22 и `@prisma/client` 7.10.0) не снят и остаётся в Шаге 4.
 - Следующий шаг: Шаг 4.
 
 ### Шаг 4. Выровнять версии Prisma и подготовить `package.json` — `todo`
 
 - [ ] В `package.json` привести `prisma` и `@prisma/client` к точной версии `8.0.0-rc.22` (без диапазона `^`).
 - [ ] Выполнить `npm install`; убедиться, что установленный клиент совпадает с CLI.
-- [ ] Добавить скрипты: `db:migrate` (`prisma migrate dev`), `db:seed` (`tsx prisma/seed.ts`), `sessions:cleanup` (`tsx scripts/cleanup-sessions.ts`), `test` (`tsx --test tests/**/*.test.ts`).
+- [ ] Добавить скрипты: `db:migrate` (`prisma migration plan` + `prisma db migrate`), `db:seed` (`tsx prisma/seed.ts`), `sessions:cleanup` (`tsx scripts/cleanup-sessions.ts`), `test` (`tsx --test tests/**/*.test.ts`).
+- Уточнение Шага 3: команд `prisma migrate dev` и `prisma db seed` в установленной версии CLI нет; миграция создаётся `prisma migration plan --name <slug>` и применяется `prisma db migrate`, seed остаётся `tsx`-скриптом (`spec.md`, строка 248). Если конфигурация не подхватывает `DATABASE_URL`, применять `prisma db migrate --db "$DATABASE_URL"` — фактические флаги подтвердить на шаге 6 через `prisma db migrate --help`.
 - Действие: выровнять версии Prisma и подготовить команды проекта.
 - Результат: CLI и клиент на одной версии, есть команды миграции, seed, очистки сессий и тестов.
 - Проверка: `npx prisma --version`; обе записи версий в `package.json` совпадают; имена скриптов совпадают со `spec.md` (CR-32).
 - Статус: `todo`.
-- Ошибки: —
+- Ошибки: — (команда `prisma migrate dev` из ранней редакции шага исправлена по итогам Шага 3).
 - Следующий шаг: Шаг 5.
 
 ### Шаг 5. Подготовить окружение — `todo`
@@ -309,7 +328,7 @@
 
 - `spec.md` — источник требований к `auth-lite` и границы урока (FR, NFR, CR-1…CR-32).
 - `AGENTS.md` — правила работы агента в проекте (обновляется на шаге 2).
-- `prisma.config.ts` — конфигурация Prisma; точный синтаксис команд уточняется по справке CLI (шаг 3).
+- `prisma.config.ts` — конфигурация Prisma; команды уточнены на шаге 3 (`prisma contract emit`, `prisma migration plan`, `prisma db migrate`), форма секций (PSL-файл, каталог миграций) проверяется на шаге 6 (`spec.md`, строка 247).
 - `package.json` — команды `dev`, `build`, `start`, `lint` и добавляемые `db:migrate`, `db:seed`, `sessions:cleanup`, `test`.
 - `.env` / `.env.example` / `.env.test` — локальное окружение без публикации секретов; `.env.test` — отдельная тестовая база.
 - `prisma/schema.prisma` — модель `User` (роль, `passwordHash`), модель `Session` (сессия в базе).
@@ -328,6 +347,7 @@
 | 16.10.2026 | Шаг 0. Сверить каркас и базовые команды | `npm run lint`, `npm run build` | lint без ошибок; build успешен (Next.js 16.4.1, Turbopack, маршруты `/` и `/_not-found`) |
 | 16.10.2026 | Шаг 1. Зафиксировать `spec.md` | Сверить роли, `passwordHash`, границы и CR | `spec.md` содержит роли `guest`, `user`, `admin`, `super_admin`, запрет plain text пароля и CR-1…CR-32 |
 | 16.10.2026 | Шаг 2. Обновить `AGENTS.md` под auth-фазу | Правила auth-фазы, запрет соседних доменов, `hasCurrentAgentRules()`, `npm run lint`, `npm run build` | `AGENTS.md`: правила `auth-lite`, запрет slots/bookings/notifications, внешних каналов, deploy и административных функций, обязательный цикл, разделение зон `spec.md`/`AGENTS.md`, правило справки Prisma CLI и `node_modules/next/dist/docs/`; блок `nextjs-agent-rules` восстановлен, `hasCurrentAgentRules()` → `true`, lint и build без ошибок |
+| 16.10.2026 | Шаг 3. Найти реальные точки изменения | Сверка с `spec.md` (строки 261–283), справка Prisma CLI 8, `npm ls prisma @prisma/client`, `node -e` (React 19.3.0), `node_modules/next/dist/docs/` | Список файлов подтверждён без лишних файлов; команды Prisma 8 — `contract emit`, `migration plan`, `db migrate`/`db update` (команд `migrate dev` и `db seed` нет → правка Шага 4); формы — `useActionState` из `react`, `redirect` вне `try/catch`, `cookies()` только внутри `<Suspense>`; порядок правок: окружение → схема и миграция → seed → lib → actions → страницы → тесты → README |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 
