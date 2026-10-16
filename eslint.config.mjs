@@ -18,6 +18,10 @@ const eslintConfig = defineConfig([
     ".claude/skills/**",
     ".cursor/skills/**",
     ".devin/skills/**",
+    // Сгенерированные артефакты Prisma 8 (`prisma contract emit`): типы контракта
+    // и их снимки в хранилище миграций. Вручную не редактируются.
+    "prisma/contract.d.ts",
+    "prisma/migrations/snapshots/**",
   ]),
 ]);
 

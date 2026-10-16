@@ -165,25 +165,27 @@
 
 | Поле | Тип | Назначение и правила |
 | --- | --- | --- |
-| `id` | `String @id @default(cuid())` | Идентификатор пользователя; используется в ссылках и в сессии |
+| `id` | `String @id @default(cuid(2))` | Идентификатор пользователя; используется в ссылках и в сессии. В Prisma 8 версия генератора обязательна: `cuid(2)` — cuid2 |
 | `email` | `String @unique` | Логин; хранится нормализованным (нижний регистр, без крайних пробелов) |
 | `passwordHash` | `String` | Хеш пароля bcryptjs с 12 раундами стоимости; открытый пароль не хранится, отдельная соль не хранится |
 | `displayName` | `String?` | Отображаемое имя; необязательное, задаётся при регистрации, не длиннее 80 символов |
 | `role` | `Role @default(user)` | Роль: `user`, `admin`, `super_admin`; меняется только вне публичного ввода |
-| `createdAt` | `DateTime @default(now())` | Дата создания (принято в проекте) |
-| `updatedAt` | `DateTime @updatedAt` | Дата обновления (принято в проекте) |
+| `createdAt` | `temporal.createdAtJsDate()` | Дата создания (принято в проекте); колонка `timestamptz`, значение в коде — `Date` |
+| `updatedAt` | `temporal.updatedAtJsDate()` | Дата обновления (принято в проекте); заполняется на создании и на каждом обновлении, значение в коде — `Date` |
 
-Перечисление `Role` — единственный источник допустимых значений роли в схеме.
+Перечисление `Role` — единственный источник допустимых значений роли в схеме: в базе роль хранится колонкой `text` с CHECK-ограничением по значениям `user`, `admin`, `super_admin`.
+
+Spelling PSL зафиксирован по установленной версии Prisma 8 (`prisma/schema.prisma`, первая строка `// use prisma-8`): у `cuid()` обязателен аргумент версии — `cuid(2)`; вместо `DateTime @default(now())` и `@updatedAt` используются field-presets `temporal.createdAtJsDate()`, `temporal.updatedAtJsDate()` и `temporal.timestamptzJsDate()`. Колонки остаются `timestamptz`, значения в коде — обычные `Date`, поэтому глобальный `Temporal` и полифилл `temporal-polyfill` приложению не нужны.
 
 ### Модель `Session`
 
 | Поле | Тип | Назначение и правила |
 | --- | --- | --- |
-| `id` | `String @id @default(cuid())` | Идентификатор записи сессии |
+| `id` | `String @id @default(cuid(2))` | Идентификатор записи сессии; в Prisma 8 — `cuid(2)` |
 | `tokenHash` | `String @unique` | SHA-256 от токена; сам токен хранится только в cookie браузера |
 | `userId` | `String` | Ссылка на `User.id`, связь с `onDelete: Cascade` |
-| `expiresAt` | `DateTime` | Момент истечения: момент создания + `SESSION_TTL_SECONDS`; проверяется на сервере при каждом чтении |
-| `createdAt` | `DateTime @default(now())` | Дата создания сессии |
+| `expiresAt` | `temporal.timestamptzJsDate()` | Момент истечения: момент создания + `SESSION_TTL_SECONDS`; проверяется на сервере при каждом чтении; значение в коде — `Date` |
+| `createdAt` | `temporal.createdAtJsDate()` | Дата создания сессии; колонка `timestamptz`, значение в коде — `Date` |
 
 Индексы: `tokenHash` (уникальный, для поиска сессии), `userId` (для удаления сессий пользователя), `expiresAt` (для очистки устаревших сессий).
 

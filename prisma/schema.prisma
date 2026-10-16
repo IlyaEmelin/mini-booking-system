@@ -1,0 +1,30 @@
+// use prisma-8
+
+enum Role {
+  user
+  admin
+  super_admin
+}
+
+model User {
+  id           String                  @id @default(cuid(2))
+  email        String                  @unique
+  passwordHash String
+  displayName  String?
+  role         Role                    @default(user)
+  createdAt    temporal.createdAtJsDate()
+  updatedAt    temporal.updatedAtJsDate()
+  sessions     Session[]
+}
+
+model Session {
+  id        String                   @id @default(cuid(2))
+  tokenHash String                   @unique
+  userId    String
+  user      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt temporal.timestamptzJsDate()
+  createdAt temporal.createdAtJsDate()
+
+  @@index([userId])
+  @@index([expiresAt])
+}
