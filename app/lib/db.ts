@@ -14,22 +14,17 @@
 // модулем `app/lib/server-only-shim.ts` через `paths` в `tsconfig.json`, поэтому
 // пакет `server-only` не нужен (NFR-9).
 //
-// Чтение и проверка окружения через `app/lib/env.ts` (FR-18) — шаг 10.
+// Строка подключения приходит из проверенного окружения `app/lib/env.ts`:
+// чтение `DATABASE_URL` и разбор `SESSION_TTL_SECONDS` собраны там (FR-18),
+// здесь остаётся только создание клиента.
 
 import "server-only";
 
 import postgres from "@prisma/orm-postgres/runtime";
 
+import { env } from "@/app/lib/env";
 import type { Contract } from "@/prisma/contract";
 import contractJson from "@/prisma/contract.json" with { type: "json" };
 
-const databaseUrl = process.env["DATABASE_URL"]?.trim() ?? "";
-
-if (databaseUrl === "") {
-  throw new Error(
-    "DATABASE_URL не задана: заполните .env по образцу .env.example",
-  );
-}
-
 /** Клиент базы данных, общий для всех серверных модулей приложения. */
-export const db = postgres<Contract>({ contractJson, url: databaseUrl });
+export const db = postgres<Contract>({ contractJson, url: env.databaseUrl });

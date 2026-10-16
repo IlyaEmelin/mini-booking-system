@@ -1,18 +1,27 @@
 "use server";
 
-// Server Actions форм регистрации и входа (FR-1, FR-3, FR-4, FR-5, FR-6, NFR-1).
+// Server Actions форм регистрации, входа и выхода (FR-1, FR-3 … FR-9, NFR-1).
 //
 // Шаг 9 (`Plan.md`): действие создаёт учётную запись с ролью `user`, сохраняет
 // только `passwordHash` (`bcryptjs.hash(password, 12)`) и проверяет вход строго
-// через `bcryptjs.compare`. Сессия, cookie и `redirect('/account')` добавляются
-// на шаге 10 в этих же действиях (FR-7, FR-9).
+// через `bcryptjs.compare`.
+// Шаг 10 (`Plan.md`): успешные регистрация и вход начинают сессию — запись
+// `Session` создаёт модуль `app/lib/session.ts`, он же ставит `HttpOnly`-cookie
+// `mb_session`, после чего действие переходит на `/account` (FR-7, FR-19).
+// Cookie и сессии трогает только модуль сессии, поэтому здесь нет работы с
+// cookie (NFR-8). `redirect` вызывается вне `try/catch`: он завершает действие
+// служебным исключением, поэтому его нельзя ставить рядом с обработкой ошибок
+// базы данных.
 //
 // Роль из формы не читается: в объект для схемы попадают только email, пароль и
 // отображаемое имя, а роль записывается литералом `user`, поэтому поле `role` не
 // влияет на результат (FR-5, FR-15, CR-5, CR-6).
 
+import { redirect } from "next/navigation";
+
 import { db } from "@/app/lib/db";
 import { hashPassword, verifyPassword } from "@/app/lib/password";
+import { endSession, startSession } from "@/app/lib/session";
 import {
   loginSchema,
   readFormText,
@@ -27,13 +36,11 @@ const LOGIN_FAILED_MESSAGE = "Неверный email или пароль";
 /** Сообщение о занятом email: одинаковое для проверки и для нарушения уникальности (FR-3). */
 const EMAIL_TAKEN_MESSAGE = "Этот email уже зарегистрирован";
 
-/** Итог шага 9: учётная запись создана, но сессия и переход в аккаунт ещё не подключены. */
-const REGISTER_OK_MESSAGE =
-  "Учётная запись создана. Сессия и переход в аккаунт появятся на шаге 10.";
+/** Маршрут аккаунта: цель перехода после успешных регистрации и входа (FR-19). */
+const ACCOUNT_PATH = "/account";
 
-/** Итог шага 9: пара email и пароль верна, сессия и переход в аккаунт ещё не подключены. */
-const LOGIN_OK_MESSAGE =
-  "Email и пароль верны. Сессия и переход в аккаунт появятся на шаге 10.";
+/** Маршрут входа: цель перехода после выхода из аккаунта (С4). */
+const LOGIN_PATH = "/login";
 
 /**
  * Хеш случайной строки с той же стоимостью bcrypt, что и рабочие пароли.
@@ -61,9 +68,42 @@ function isUniqueEmailViolation(error: unknown): boolean {
 }
 
 /**
+ * Создаёт учётную запись с ролью `user` и возвращает её идентификатор, а при
+ * занятом email — `null` (FR-3, FR-5). Вставка выделена из действия `register`:
+ * `redirect` и `startSession` вызываются после обработки ошибок, поэтому
+ * служебное исключение перехода не попадает в `try/catch` базы данных.
+ */
+async function createUserWithRoleUser(input: {
+  email: string;
+  passwordHash: string;
+  displayName: string | null;
+}): Promise<string | null> {
+  try {
+    // Роль задаётся только этим литералом: значение из формы, query-параметра
+    // или тела запроса не читается (FR-5, FR-15).
+    const created = await db.orm.public.User.select("id").create({
+      email: input.email,
+      passwordHash: input.passwordHash,
+      displayName: input.displayName,
+      role: "user",
+    });
+
+    return created.id;
+  } catch (error: unknown) {
+    if (isUniqueEmailViolation(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Регистрация: валидация, нормализация email и создание учётной записи с ролью
  * `user`. Некорректные данные и занятый email возвращаются в состояние формы и
- * новой учётной записи не создают (FR-1, FR-3, FR-5).
+ * новой учётной записи не создают (FR-1, FR-3, FR-5). При успехе действие
+ * начинает сессию и переходит на `/account`, поэтому состояние формы
+ * возвращается только при ошибках (FR-7, FR-19).
  */
 export async function register(
   _previousState: AuthFormState,
@@ -91,34 +131,29 @@ export async function register(
 
   const passwordHash = await hashPassword(parsed.data.password);
 
-  try {
-    // Роль задаётся только этим литералом: значение из формы, query-параметра
-    // или тела запроса не читается (FR-5, FR-15).
-    await db.orm.public.User.create({
-      email: parsed.data.email,
-      passwordHash,
-      displayName: parsed.data.displayName,
-      role: "user",
-    });
-  } catch (error: unknown) {
-    if (isUniqueEmailViolation(error)) {
-      return { errors: { email: EMAIL_TAKEN_MESSAGE }, values, message: null };
-    }
-    throw error;
+  const userId = await createUserWithRoleUser({
+    email: parsed.data.email,
+    passwordHash,
+    displayName: parsed.data.displayName,
+  });
+
+  if (userId === null) {
+    return { errors: { email: EMAIL_TAKEN_MESSAGE }, values, message: null };
   }
 
-  return {
-    errors: {},
-    values,
-    message: { tone: "notice", text: REGISTER_OK_MESSAGE },
-  };
+  // Сессия: запись в базе данных и `HttpOnly`-cookie ставятся на сервере
+  // (FR-7, С1). Состояние формы после этого не возвращается — действие
+  // завершает переход на страницу аккаунта (FR-19).
+  await startSession(userId);
+  redirect(ACCOUNT_PATH);
 }
 
 /**
  * Вход: поиск пользователя по нормализованному email и строгая проверка пароля
  * через `bcryptjs.compare`. Неизвестный email и неверный пароль дают одно и то
  * же сообщение, а время ответа выравнивается сравнением с константным хешем
- * (FR-4, FR-6, С2). Создание сессии — шаг 10.
+ * (FR-4, FR-6, С2). При успехе начинается сессия и действие переходит на
+ * `/account` (FR-7, FR-19).
  */
 export async function login(
   _previousState: AuthFormState,
@@ -155,9 +190,18 @@ export async function login(
     };
   }
 
-  return {
-    errors: {},
-    values,
-    message: { tone: "notice", text: LOGIN_OK_MESSAGE },
-  };
+  // Сессия: запись в базе данных и `HttpOnly`-cookie ставятся на сервере
+  // (FR-7, С2). Роль берётся из базы данных, а не из формы (FR-15).
+  await startSession(user.id);
+  redirect(ACCOUNT_PATH);
+}
+
+/**
+ * Выход: удаление записи сессии и cookie `mb_session` (FR-9, С4). Действие
+ * вызывается кнопкой на `/account` и завершается переходом на `/login`;
+ * сохранённое прежнее значение cookie доступа не даёт (CR-12).
+ */
+export async function logout(): Promise<void> {
+  await endSession();
+  redirect(LOGIN_PATH);
 }
