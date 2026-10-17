@@ -6,15 +6,29 @@ enum Role {
   super_admin
 }
 
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum NotificationType {
+  booking_created
+  booking_confirmed
+  booking_cancelled
+}
+
 model User {
-  id           String                  @id @default(cuid(2))
-  email        String                  @unique
-  passwordHash String
-  displayName  String?
-  role         Role                    @default(user)
-  createdAt    temporal.createdAtJsDate()
-  updatedAt    temporal.updatedAtJsDate()
-  sessions     Session[]
+  id            String                  @id @default(cuid(2))
+  email         String                  @unique
+  passwordHash  String
+  displayName   String?
+  role          Role                    @default(user)
+  createdAt     temporal.createdAtJsDate()
+  updatedAt     temporal.updatedAtJsDate()
+  sessions      Session[]
+  bookings      Booking[]
+  notifications Notification[]
 }
 
 model Session {
@@ -27,4 +41,52 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Slot {
+  id        String                      @id @default(cuid(2))
+  startsAt  temporal.timestamptzJsDate()
+  endsAt    temporal.timestamptzJsDate()
+  capacity  Int                         @default(1)
+  createdAt temporal.createdAtJsDate()
+  updatedAt temporal.updatedAtJsDate()
+  bookings  Booking[]
+
+  @@unique([startsAt, endsAt])
+  @@index([startsAt])
+  @@check(expression: sql`endsAt > startsAt`, name: "Slot_endsAt_after_startsAt")
+  @@check(expression: sql`capacity > 0`, name: "Slot_capacity_positive")
+}
+
+model Booking {
+  id            String                      @id @default(cuid(2))
+  userId        String
+  user          User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slotId        String
+  slot          Slot                        @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  status        BookingStatus               @default(pending)
+  createdAt     temporal.createdAtJsDate()
+  updatedAt     temporal.updatedAtJsDate()
+  confirmedAt   TimestamptzJsDate?
+  cancelledAt   TimestamptzJsDate?
+  notifications Notification[]
+
+  @@index([userId, status])
+  @@index([slotId, status])
+  @@index([userId, slotId], unique: true, where: sql`status IN ('pending', 'confirmed')`, name: "Booking_active_user_slot_key")
+}
+
+model Notification {
+  id        String                      @id @default(cuid(2))
+  userId    String
+  user      User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingId String?
+  booking   Booking?                    @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  type      NotificationType
+  message   String
+  readAt    TimestamptzJsDate?
+  createdAt temporal.createdAtJsDate()
+
+  @@index([userId, readAt])
+  @@index([bookingId])
 }
