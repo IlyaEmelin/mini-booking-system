@@ -24,6 +24,7 @@
 import "server-only";
 
 import { db } from "@/app/lib/db";
+import { createNotification } from "@/app/lib/notifications";
 import type { SessionRole, SessionUser } from "@/app/lib/session";
 
 /** Статусы, которые занимают вместимость слота (FR-22, FR-23, CR-35, CR-37). */
@@ -100,15 +101,6 @@ type BookingSummaryRow = Readonly<{
   slot: BookingSlotSummary;
 }>;
 
-/** Тип уведомления и его стабильный текст (FR-26, CR-40). */
-const NOTIFICATION_MESSAGES = {
-  booking_created: "Бронь создана и ожидает подтверждения.",
-  booking_confirmed: "Бронь подтверждена.",
-  booking_cancelled: "Бронь отменена.",
-} as const;
-
-type BookingNotificationType = keyof typeof NOTIFICATION_MESSAGES;
-
 /** Признак роли администратора: подтверждение и отмена чужой брони (FR-25). */
 function isAdminRole(role: SessionRole | null): boolean {
   return role !== null && ADMIN_ROLES.includes(role);
@@ -162,24 +154,6 @@ function isUniqueViolation(error: unknown): boolean {
   }
   const { kind, sqlState } = error as { kind?: unknown; sqlState?: unknown };
   return kind === "sql_query" && sqlState === "23505";
-}
-
-/**
- * Внутреннее уведомление владельцу брони в текущей транзакции (FR-26, CR-40).
- * Уведомление не выбирает получателя из аргументов вызывающей стороны:
- * `userId` всегда совпадает с владельцем изменяемой брони.
- */
-async function createBookingNotification(
-  tx: Transaction,
-  booking: Readonly<{ id: string; userId: string }>,
-  type: BookingNotificationType,
-): Promise<void> {
-  await tx.orm.public.Notification.select("id").create({
-    userId: booking.userId,
-    bookingId: booking.id,
-    type,
-    message: NOTIFICATION_MESSAGES[type],
-  });
 }
 
 /**
@@ -283,7 +257,7 @@ export async function createBooking(
           status: "pending",
         });
 
-      await createBookingNotification(tx, booking, "booking_created");
+      await createNotification(tx, booking, "booking_created");
 
       return toBookingSummary({ ...booking, slot });
     });
@@ -369,7 +343,7 @@ export async function cancelBooking(
     }
 
     const slot = await loadBookingSlot(tx, booking.slotId);
-    await createBookingNotification(tx, updated, "booking_cancelled");
+    await createNotification(tx, updated, "booking_cancelled");
 
     return toBookingSummary({ ...updated, slot });
   });
@@ -446,7 +420,7 @@ export async function confirmBooking(
       throw new BookingError("BOOKING_NOT_FOUND");
     }
 
-    await createBookingNotification(tx, updated, "booking_confirmed");
+    await createNotification(tx, updated, "booking_confirmed");
 
     return toBookingSummary({ ...updated, slot });
   });

@@ -11,9 +11,9 @@
 - Ограничение объёма: не реализовывать пользовательский booking flow (страницы слотов, формы создания/переноса/отмены брони, экран уведомлений), административные функции, внешние каналы (email, SMS, calendar, desktop), deploy и новые зависимости.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
 - `README.md` на шаге 0 может описывать предыдущую фазу; он обновляется только на шаге 8 после реализации и проверок.
-- Следующий шаг: **Шаг 6 «Собрать серверный модуль уведомлений»** — `todo`. Шаг 5 закрыт.
-- Предыдущая проверка: Шаг 4 — `app/lib/slots.ts` возвращает только будущие слоты по возрастанию `startsAt`, считает `activeBookings` (`pending` + `confirmed`) и `availableCapacity`, для неизвестного id — `null`; `tests/slots.test.ts` на тестовой базе проверил прошедший слот, сортировку, вместимость, отменённую бронь, прошедший слот с `isUpcoming = false` и `null`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 16/16 дважды.
-- Последняя проверка: Шаг 5 — `app/lib/bookings.ts` создаёт бронь только для `actor.id` на будущий свободный слот, проверяет дубль раньше вместимости, блокирует слот через `FOR UPDATE`, создаёт `pending` и `booking_created` в одной транзакции; `cancelBooking`/`confirmBooking` блокируют бронь, проверяют роль по базе и допустимый переход, пишут `cancelledAt`/`confirmedAt` и уведомление в той же транзакции; `listMyBookings` фильтрует только по `actor.id`; временный smoke-скрипт (удалён после прогона) на тестовой базе прошёл все доменные коды, изоляцию и конкурентный сценарий `capacity = 1` — ровно одна успешная бронь, вторая получила `SLOT_FULL`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 16/16.
+- Следующий шаг: **Шаг 7 «Добавить автотесты слоя данных»** — `todo`. Шаг 6 закрыт.
+- Предыдущая проверка: Шаг 5 — `app/lib/bookings.ts` создаёт бронь только для `actor.id` на будущий свободный слот, проверяет дубль раньше вместимости, блокирует слот через `FOR UPDATE`, создаёт `pending` и `booking_created` в одной транзакции; `cancelBooking`/`confirmBooking` блокируют бронь, проверяют роль по базе и допустимый переход, пишут `cancelledAt`/`confirmedAt` и уведомление в той же транзакции; `listMyBookings` фильтрует только по `actor.id`; временный smoke-скрипт (удалён после прогона) на тестовой базе прошёл все доменные коды, изоляцию и конкурентный сценарий `capacity = 1` — ровно одна успешная бронь, вторая получила `SLOT_FULL`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 16/16.
+- Последняя проверка: Шаг 6 — `app/lib/notifications.ts` читает только уведомления `actor.id` от новых к старым и отдаёт `id`, `type`, `message`, `bookingId`, `readAt`, `createdAt`; `markNotificationRead` блокирует строку через `FOR UPDATE`, проверяет владельца, выставляет `readAt` один раз и идемпотентен при повторе, возвращает `NOTIFICATION_NOT_FOUND`/`FORBIDDEN`; внутренний `createNotification` принимает транзакцию и бронь, вызывается только из `createBooking`/`confirmBooking`/`cancelBooking`; временный smoke-скрипт (удалён после прогона) на тестовой базе проверил все три типа уведомлений, изоляцию чужого пользователя и администратора, оба доменных кода и неизменность `readAt`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 16/16; `git diff --check` — exit 0.
 
 - История 4.3.2: подробные шаги, проверки и журнал — в Git (`b42f50e` — итоговая проверка, `8bda8e0` — runbook, `96701d9` — автотесты и очистка сессий, `563ecc1` — проверки ролей и аккаунт, `1ab4383` — сессия и выход).
 
@@ -80,11 +80,11 @@
 
 ## 4. Следующий активный пункт
 
-**Следующий активный пункт: Шаг 3 «Расширить seed слотами» — `todo`.**
+**Следующий активный пункт: Шаг 7 «Добавить автотесты слоя данных» — `todo`.**
 
-Основание: Шаг 2 закрыт — миграция `20261017T1509_data_layer` применена к dev- и test-базе, `db verify` подтверждает контракт `storageHash 2c4bfdd…`, `migration status` — `Up to date`.
-Правило порядка: шаг 3 меняет только `prisma/seed.ts`; DAL, тесты и `README.md` начинаются только после проверки идемпотентного seed.
-Ограничение шага: не менять `prisma/schema.prisma`, `prisma/migrations/`, `app/`, `tests/`, `package.json` и `README.md`; новых зависимостей и переменных окружения не вводить (NFR-9, CR-26). Команды Prisma 8 и seed сверять по `package.json` и `npx prisma --help`.
+Основание: Шаг 6 закрыт — модуль `app/lib/notifications.ts` проверен временным smoke-тестом, брони переключены на общий `createNotification`, полный набор `tsc`/lint/build/`npm test` проходит.
+Правило порядка: шаг 7 добавляет автотесты на отдельной тестовой базе; `README.md` меняется только на шаге 8.
+Ограничение шага: не расширять серверные модули, Prisma-контракт, миграции и seed без обнаруженного дефекта; использовать существующие `tests/test-env.ts`, `npm test` и новые зависимости не вводить.
 
 ## 5. Шаги
 
@@ -179,19 +179,19 @@
 - Ошибки: нет; промежуточные замечания TypeScript по nullable-связи слота и неиспользуемому типу устранены до финальных проверок.
 - Следующий шаг: Шаг 6.
 
-### Шаг 6. Собрать серверный модуль уведомлений — `todo`
+### Шаг 6. Собрать серверный модуль уведомлений — `done`
 
-- [ ] Создать `app/lib/notifications.ts` с `import "server-only"`.
-- [ ] Реализовать `listMyNotifications(actor)`: только `userId = actor.id`, сортировка от новых к старым, вернуть `type`, `message`, `bookingId`, `readAt`, `createdAt`.
-- [ ] Реализовать `markNotificationRead(actor, notificationId)`: только своё уведомление; `readAt` выставляется один раз, повторный вызов идемпотентен.
-- [ ] Реализовать внутренний `createNotification(tx, ...)`, который вызывается только из транзакций броней; отдельного публичного создания уведомлений нет.
-- [ ] Вернуть `NOTIFICATION_NOT_FOUND` для неизвестного уведомления и `FORBIDDEN` для чужого.
-- [ ] Не отправлять email, SMS, calendar и desktop-уведомления; не добавлять внешние сервисы.
+- [x] Создать `app/lib/notifications.ts` с `import "server-only"`.
+- [x] Реализовать `listMyNotifications(actor)`: только `userId = actor.id`, сортировка от новых к старым, вернуть `type`, `message`, `bookingId`, `readAt`, `createdAt` (+ `id` для отметки прочтения).
+- [x] Реализовать `markNotificationRead(actor, notificationId)`: только своё уведомление; `readAt` выставляется один раз, повторный вызов идемпотентен.
+- [x] Реализовать внутренний `createNotification(tx, ...)`, который вызывается только из транзакций броней; отдельного публичного создания уведомлений нет.
+- [x] Вернуть `NOTIFICATION_NOT_FOUND` для неизвестного уведомления и `FORBIDDEN` для чужого.
+- [x] Не отправлять email, SMS, calendar и desktop-уведомления; не добавлять внешние сервисы.
 - Действие: дать серверный API внутренних уведомлений, создаваемых вместе с бронью.
-- Результат: каждое изменение брони оставляет внутреннее уведомление владельцу; чужие уведомления недоступны.
-- Проверка: после создания, подтверждения и отмены брони у владельца появляются уведомления соответствующих типов; чужой пользователь их не видит и не может отметить прочитанными; повторная отметка не меняет `readAt`.
-- Статус: `todo`.
-- Ошибки: —
+- Результат: `app/lib/notifications.ts` — server-only модуль с `NotificationError` (`NOTIFICATION_NOT_FOUND`, `FORBIDDEN`), `NotificationSummary` и функциями `listMyNotifications`, `markNotificationRead`, `createNotification`. Чтение ограничено `actor.id` и сортируется по `createdAt` от новых к старым. Отметка прочтения выполняется в транзакции с `FOR UPDATE`, проверяет владельца и пишет `readAt` один раз; неизвестное уведомление даёт `NOTIFICATION_NOT_FOUND`, чужое — `FORBIDDEN`. Внутренний `createNotification(tx, booking, type)` адресует уведомление `booking.userId` и использует фиксированные тексты; публичного создания нет. `app/lib/bookings.ts` переведён на этот helper, локальные тексты и дублирующий `createBookingNotification` удалены.
+- Проверка: временный smoke-скрипт (удалён после прогона) на тестовой базе создал бронь, подтвердил её администратором и отменил владельцем; у владельца появились уведомления `booking_created`, `booking_confirmed`, `booking_cancelled` в порядке от новых к старым, с `bookingId` и без `userId`; чужой пользователь и `admin` не увидели уведомления владельца, их отметка дала `FORBIDDEN`; неизвестное уведомление дало `NOTIFICATION_NOT_FOUND`; первая отметка выставила заданный `readAt`, повторная с более поздним временем не изменила ни возвращённое, ни сохранённое значение; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 16 / suites 7 / pass 16 / fail 0`; `git diff --check` — exit 0.
+- Статус: `done`.
+- Ошибки: нет.
 - Следующий шаг: Шаг 7.
 
 ### Шаг 7. Добавить автотесты слоя данных — `todo`
@@ -295,6 +295,7 @@ npm test
 | 17.10.2026 | Шаг 3. Расширить seed слотами | `npm run db:seed` (3 запуска); `psql` — 14 слотов, окна/интервалы/capacity, 1 `super_admin`; `npx prisma db verify`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | `prisma/seed.ts` дополнен идемпотентным созданием 14 слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`); первый запуск — `создано 14`, повторные — `создано 0, уже было 14`, количество `Slot` 14 не изменилось; `super_admin` — 1; db verify/tsc/lint/build — exit 0; `npm test` — 11/11; diff-check без замечаний |
 | 17.10.2026 | Шаг 4. Собрать серверный модуль слотов | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (два прогона); `git diff --check` | `app/lib/slots.ts` добавлен: `listUpcomingSlots` фильтрует `startsAt > now`, сортирует по `startsAt`, считает relation-`count()` активных броней и `availableCapacity`; `getSlotAvailability` возвращает `null` для неизвестного id; `tests/slots.test.ts` — 5 проверок на тестовой базе; tsc/lint/build — exit 0; `npm test` — 16/16 дважды; diff-check — exit 0 |
 | 17.10.2026 | Шаг 5. Собрать серверный модуль броней и переходы | Временный smoke на тестовой базе (создание, коды, роли, переходы, изоляция, уведомления, конкурентный `capacity = 1`); `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check` | `app/lib/bookings.ts` добавлен: `createBooking` блокирует слот (`FOR UPDATE`), проверяет будущее, дубль и вместимость, создаёт `pending` + `booking_created` в одной транзакции; `cancelBooking`/`confirmBooking` блокируют бронь, читают роль из базы, разрешают только допустимые переходы и пишут уведомление; `listMyBookings` ограничен `actor.id`; smoke прошёл все доменные коды и конкурентный сценарий (одна успешная бронь, вторая — `SLOT_FULL`); tsc/lint/build — exit 0; `npm test` — 16/16; diff-check — exit 0 |
+| 17.10.2026 | Шаг 6. Собрать серверный модуль уведомлений | Временный smoke на тестовой базе (create/confirm/cancel, типы уведомлений, изоляция, `FORBIDDEN`, `NOTIFICATION_NOT_FOUND`, идемпотентный `readAt`); `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check` | `app/lib/notifications.ts` добавлен: `listMyNotifications` ограничен `actor.id`, сортирует `createdAt` desc и отдаёт `id`, `type`, `message`, `bookingId`, `readAt`, `createdAt`; `markNotificationRead` блокирует строку (`FOR UPDATE`), проверяет владельца, пишет `readAt` один раз и идемпотентен, возвращает `NOTIFICATION_NOT_FOUND`/`FORBIDDEN`; внутренний `createNotification(tx, booking, type)` вызывается только из транзакций броней, адресует уведомление `booking.userId` и использует фиксированные тексты; `app/lib/bookings.ts` переведён на helper, локальный `createBookingNotification` удалён; smoke прошёл три типа уведомлений, изоляцию чужого пользователя и администратора, оба кода и неизменность `readAt`; tsc/lint/build — exit 0; `npm test` — 16/16; diff-check — exit 0 |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 
