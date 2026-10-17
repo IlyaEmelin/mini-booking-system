@@ -11,9 +11,9 @@
 - Ограничение объёма: не реализовывать пользовательский booking flow (страницы слотов, формы создания/переноса/отмены брони, экран уведомлений), административные функции, внешние каналы (email, SMS, calendar, desktop), deploy и новые зависимости.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
 - `README.md` на шаге 0 может описывать предыдущую фазу; он обновляется только на шаге 8 после реализации и проверок.
-- Следующий шаг: **Шаг 3 «Расширить seed слотами»** — `todo`. Шаг 2 закрыт.
-- Предыдущая проверка: Шаг 1 — `prisma/schema.prisma` дополнен `BookingStatus`, `NotificationType`, моделями `Slot`, `Booking`, `Notification` и связями `User.bookings`/`User.notifications`; `npx prisma contract emit` — успешно (`storageHash a8a421d6…`); `prisma/contract.json` содержит таблицы `Booking`, `Notification`, `Slot`, value sets `BookingStatus`, `NotificationType`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0 (Next.js 16.4.1, 7 маршрутов); `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0 (~22 с); `git diff --check` — замечаний нет (только предупреждения LF/CRLF).
-- Последняя проверка: Шаг 2 — CHECK-выражения `Slot` переведены на quoted identifiers (`"endsAt" > "startsAt"`, `"capacity" > 0`), контракт переэмитирован (`storageHash 2c4bfdd…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); пакет `prisma/migrations/app/20261017T1509_data_layer` (`e4cd210… → 2c4bfdd…`, 17 ops, 0 placeholders) применён к dev- и test-базе; `npx prisma db verify` на обеих базах — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `npm run db:migrate` — `No changes detected` / `Already up to date`; `migration check` — `All checks passed`; `psql` подтвердил CHECK, 4 FK, 9 индексов и частичный уникальный индекс, а транзакционный сценарий — отказ для неверного интервала, `capacity = 0` и второй активной брони; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0; `git diff --check` — без замечаний (только предупреждения LF/CRLF).
+- Следующий шаг: **Шаг 4 «Собрать серверный модуль слотов»** — `todo`. Шаг 3 закрыт.
+- Предыдущая проверка: Шаг 2 — CHECK-выражения `Slot` переведены на quoted identifiers (`"endsAt" > "startsAt"`, `"capacity" > 0`), контракт переэмитирован (`storageHash 2c4bfdd…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); пакет `20261017T1509_data_layer` (`e4cd210… → 2c4bfdd…`, 17 ops, 0 placeholders) применён к dev- и test-базе; `npx prisma db verify` на обеих базах — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `npm run db:migrate` — no-op; `migration check` — `All checks passed`; `psql` подтвердил CHECK, 4 FK, 9 индексов и частичный уникальный индекс, а транзакционный сценарий — отказ для неверного интервала, `capacity = 0` и второй активной брони; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 11/11, exit 0; `git diff --check` — без замечаний.
+- Последняя проверка: Шаг 3 — `prisma/seed.ts` создаёт 14 слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`) идемпотентно по паре `startsAt` + `endsAt`; первый запуск — `создано 14, уже было 0`, второй и третий — `создано 0, уже было 14`, общее число `Slot` 14 не изменилось; `super_admin` — 1; `psql` подтвердил даты 18.10–24.10.2026, интервалы 60 минут и `capacity = 1`; `npx prisma db verify` — `Database marker and schema match contract`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0; `git diff --check` — без замечаний.
 
 - История 4.3.2: подробные шаги, проверки и журнал — в Git (`b42f50e` — итоговая проверка, `8bda8e0` — runbook, `96701d9` — автотесты и очистка сессий, `563ecc1` — проверки ролей и аккаунт, `1ab4383` — сессия и выход).
 
@@ -134,18 +134,18 @@
 - Ошибки: первый `db migrate` упал с `MIGRATION.RUNNER_FAILED`: CHECK из PSL был без quoted identifiers, PostgreSQL искал `endsat`; транзакция откатилась. Исправлено на `"endsAt" > "startsAt"` и `"capacity" > 0`, контракт переэмитирован (`storageHash 2c4bfdd…`). Повторный `npm run db:migrate` после явного `migration plan` создал форк-дубль `20261017T1508_migration`; оба старых пакета и snapshot `a8a421d…` удалены, миграция пересобрана как `20261017T1509_data_layer`, ref `db` продвинут через `--advance-ref db`.
 - Следующий шаг: Шаг 3.
 
-### Шаг 3. Расширить seed слотами — `todo`
+### Шаг 3. Расширить seed слотами — `done`
 
-- [ ] Оставить существующее создание/обновление ровно одного `super_admin`.
-- [ ] Добавить идемпотентное создание слотов начиная с завтрашнего дня на 7 дней вперёд: два окна в день (например, 10:00 и 15:00 UTC), длительность 60 минут, `capacity = 1`.
-- [ ] Не дублировать слоты: искать по уникальной паре `[startsAt, endsAt]` и создавать только отсутствующие.
-- [ ] Выводить в консоль количество созданных и уже существующих слотов; не удалять существующие слоты и брони.
-- [ ] Не добавлять новых переменных окружения и зависимостей.
+- [x] Оставить существующее создание/обновление ровно одного `super_admin`.
+- [x] Добавить идемпотентное создание слотов начиная с завтрашнего дня на 7 дней вперёд: два окна в день (10:00 и 15:00 UTC), длительность 60 минут, `capacity = 1`.
+- [x] Не дублировать слоты: искать по уникальной паре `[startsAt, endsAt]` и создавать только отсутствующие.
+- [x] Выводить в консоль количество созданных и уже существующих слотов; не удалять существующие слоты и брони.
+- [x] Не добавлять новых переменных окружения и зависимостей.
 - Действие: наполнить базу воспроизводимыми слотами.
-- Результат: после `npm run db:seed` есть будущие слоты; повторный запуск не создаёт дубликатов.
-- Проверка: `npm run db:seed` дважды; после первого запуска появляются слоты, после второго — «создано 0», общее число не изменилось; `super_admin` остаётся один; `git diff --check` — без замечаний.
-- Статус: `todo`.
-- Ошибки: —
+- Результат: `npm run db:seed` создаёт 14 будущих слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`); повторный запуск не создаёт дубликатов и не удаляет слоты и брони; `super_admin` остаётся один.
+- Проверка: `npm run db:seed` трижды — 14 → «создано 0, уже было 14» → количество `Slot` не изменилось; `psql` — 14 слотов, окна 10:00/15:00 UTC, интервалы 60 минут, `capacity = 1`, `super_admin = 1`; `npx prisma db verify`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` — 11/11; `git diff --check` — exit 0.
+- Статус: `done`.
+- Ошибки: проверочный `psql` в Windows сначала потерял кавычки идентификаторов (`отношение "slot" не существует`); это ошибка команды проверки, а не seed — SQL повторён через stdin (`psql -f -`) и прошёл. Код seed ошибок не дал.
 - Следующий шаг: Шаг 4.
 
 ### Шаг 4. Собрать серверный модуль слотов — `todo`
@@ -292,6 +292,7 @@ npm test
 | 17.10.2026 | Шаг 0. Обновить `spec.md` под слой данных | Сверка `spec.md`, `AGENTS.md`, `Plan.md`; `npm run lint`; `npx tsc --noEmit`; `npm run build`; `npm test`; `git diff --check` | `spec.md` дополнен `Slot`, `Booking`, `Notification`, `BookingStatus`, `NotificationType`, ER-диаграммой, таблицей переходов, инвариантами и `CR-33`…`CR-41`; `AGENTS.md` переведён на `4.3.3`, запрет на слой данных снят, границы фазы переписаны; `Plan.md` открывает новый цикл; lint/tsc/build — exit 0, `npm test` — 11/11, diff-check без замечаний |
 | 17.10.2026 | Шаг 1. Расширить Prisma-контракт | `npx prisma contract emit`; проверка `contract.json`/`contract.d.ts`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | В PSL добавлены `BookingStatus`, `NotificationType`, модели `Slot`, `Booking`, `Notification`, связи `User`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; nullable-даты используют `TimestamptzJsDate?`; emit успешен (`storageHash a8a421d6…`), tsc/lint/build — exit 0, `npm test` — 11/11, лишних файлов нет, diff-check без замечаний |
 | 17.10.2026 | Шаг 2. Создать и применить миграцию | `npx prisma contract emit`; `npx prisma migration plan --name data_layer`; `npx prisma db migrate --advance-ref db`; `npm run db:migrate`; миграция test-базы; `npx prisma db verify` (dev/test); `npx prisma migration status` (dev/test); `npx prisma migration check`; `psql` — ограничения, индексы и транзакционные проверки; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check` | Пакет `20261017T1509_data_layer` (17 ops) применён к dev- и test-базе; CHECK `Slot` исправлены на quoted identifiers, контракт `storageHash 2c4bfdd…`; `db verify` — совпадение, `migration status` — `Up to date`, `npm run db:migrate` — no-op; psql подтвердил CHECK/FK/индексы/partial unique и откат недопустимых вставок; tsc/lint/build — exit 0, `npm test` — 11/11, diff-check без замечаний |
+| 17.10.2026 | Шаг 3. Расширить seed слотами | `npm run db:seed` (3 запуска); `psql` — 14 слотов, окна/интервалы/capacity, 1 `super_admin`; `npx prisma db verify`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | `prisma/seed.ts` дополнен идемпотентным созданием 14 слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`); первый запуск — `создано 14`, повторные — `создано 0, уже было 14`, количество `Slot` 14 не изменилось; `super_admin` — 1; db verify/tsc/lint/build — exit 0; `npm test` — 11/11; diff-check без замечаний |
 
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.

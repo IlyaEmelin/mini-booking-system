@@ -1,9 +1,13 @@
-// Seed auth-lite: ровно один начальный администратор с ролью `super_admin`.
+// Seed 4.3.3: ровно один начальный администратор с ролью `super_admin`
+// и воспроизводимые слоты начиная с завтрашнего дня на 7 дней вперёд.
 //
 // Запуск: `npm run db:seed` (tsx prisma/seed.ts) из корня проекта.
 // Учётные данные берутся из окружения (`SEED_SUPER_ADMIN_EMAIL`,
 // `SEED_SUPER_ADMIN_PASSWORD`); в базу попадает только `passwordHash`
 // (`bcryptjs.hash(password, 12)`), пароль в консоль не печатается (FR-14, CR-15, CR-16).
+// Слоты ищутся по уникальной паре `startsAt` + `endsAt`, поэтому повторный
+// запуск не создаёт дубликаты и не удаляет существующие слоты и брони
+// (FR-21, CR-34).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,6 +35,13 @@ const BCRYPT_ROUNDS = 12;
 // Роль начального администратора: значение перечисления `Role` из контракта.
 const SEED_ROLE = "super_admin";
 
+// Слоты из seed (FR-21, CR-34): завтра и ещё 6 дней, два окна в день в UTC,
+// длительность 60 минут, вместимость 1.
+const SLOT_DAYS = 7;
+const SLOT_HOURS_UTC = [10, 15] as const;
+const SLOT_DURATION_MS = 60 * 60 * 1000;
+const SLOT_CAPACITY = 1;
+
 // Файл-образец окружения: единственный источник заглушки пароля (CR-27).
 const ENV_EXAMPLE_FILE = ".env.example";
 
@@ -44,6 +55,11 @@ type SeedUserRow = Readonly<{
   id: string;
   email: string;
   role: string;
+}>;
+
+type SeedSlotWindow = Readonly<{
+  startsAt: Date;
+  endsAt: Date;
 }>;
 
 /** Ошибка настройки или запуска seed: сообщение печатается без пароля. */
@@ -144,6 +160,32 @@ function report(user: SeedUserRow, outcome: string): void {
 }
 
 /**
+ * Окна слотов из seed: завтрашний день и ещё шесть дней, по два окна в день.
+ * Время строится через `Date.UTC`, поэтому 10:00 и 15:00 не сдвигаются
+ * переходами часовых поясов и летним временем (FR-21, CR-34).
+ */
+function buildSlotWindows(now: Date): readonly SeedSlotWindow[] {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const day = now.getUTCDate();
+  const windows: SeedSlotWindow[] = [];
+
+  for (let dayOffset = 0; dayOffset < SLOT_DAYS; dayOffset += 1) {
+    for (const hour of SLOT_HOURS_UTC) {
+      const startsAt = new Date(
+        Date.UTC(year, month, day + 1 + dayOffset, hour, 0, 0, 0),
+      );
+      windows.push({
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + SLOT_DURATION_MS),
+      });
+    }
+  }
+
+  return windows;
+}
+
+/**
  * Создаёт начального `super_admin` или обновляет его пароль.
  * Пользователь определяется по фиксированному email, поэтому второго
  * `super_admin` не появляется; роль существующего пользователя не понижается:
@@ -163,24 +205,45 @@ async function main(): Promise<void> {
       const created = await db.orm.public.User.select("id", "email", "role")
         .create({ email: config.email, passwordHash, role: SEED_ROLE });
       report(created, "пользователь создан с ролью super_admin");
-      return;
-    }
-
-    if (existing.role === SEED_ROLE) {
+    } else if (existing.role === SEED_ROLE) {
       await db.orm.public.User.where({ id: existing.id })
         .select("id", "email", "role")
         .update({ passwordHash });
       report(existing, "пользователь уже был: пароль обновлён, роль сохранена");
-      return;
+    } else {
+      const promoted = await db.orm.public.User.where({ id: existing.id })
+        .select("id", "email", "role")
+        .update({ passwordHash, role: SEED_ROLE });
+      report(
+        promoted ?? existing,
+        `роль повышена с ${existing.role} до super_admin, пароль обновлён`,
+      );
     }
 
-    const promoted = await db.orm.public.User.where({ id: existing.id })
-      .select("id", "email", "role")
-      .update({ passwordHash, role: SEED_ROLE });
-    report(
-      promoted ?? existing,
-      `роль повышена с ${existing.role} до super_admin, пароль обновлён`,
-    );
+    const windows = buildSlotWindows(new Date());
+    let createdSlots = 0;
+    let existingSlots = 0;
+
+    for (const window of windows) {
+      const existingSlot = await db.orm.public.Slot.select("id")
+        .where({ startsAt: window.startsAt, endsAt: window.endsAt })
+        .first();
+
+      if (existingSlot !== null) {
+        existingSlots += 1;
+        continue;
+      }
+
+      await db.orm.public.Slot.select("id").create({
+        startsAt: window.startsAt,
+        endsAt: window.endsAt,
+        capacity: SLOT_CAPACITY,
+      });
+      createdSlots += 1;
+    }
+
+    console.log("seed: слоты готовы");
+    console.log(`  создано ${createdSlots}, уже было ${existingSlots}`);
   } finally {
     // Клиент Prisma 8 держит пул соединений: без close() скрипт не завершится.
     await db.close();
