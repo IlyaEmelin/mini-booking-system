@@ -11,8 +11,10 @@
 - Ограничение объёма: не реализовывать пользовательский booking flow (страницы слотов, формы создания/переноса/отмены брони, экран уведомлений), административные функции, внешние каналы (email, SMS, calendar, desktop), deploy и новые зависимости.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
 - `README.md` на шаге 0 может описывать предыдущую фазу; он обновляется только на шаге 8 после реализации и проверок.
-- Следующий шаг: **Шаг 2 «Создать и применить миграцию»** — `todo`. Шаг 1 закрыт.
-- Последняя проверка: Шаг 1 — `prisma/schema.prisma` дополнен `BookingStatus`, `NotificationType`, моделями `Slot`, `Booking`, `Notification` и связями `User.bookings`/`User.notifications`; `npx prisma contract emit` — успешно (`storageHash a8a421d6…`); `prisma/contract.json` содержит таблицы `Booking`, `Notification`, `Slot`, value sets `BookingStatus`, `NotificationType`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0 (Next.js 16.4.1, 7 маршрутов); `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0 (~22 с); `git diff --check` — замечаний нет (только предупреждения LF/CRLF).
+- Следующий шаг: **Шаг 3 «Расширить seed слотами»** — `todo`. Шаг 2 закрыт.
+- Предыдущая проверка: Шаг 1 — `prisma/schema.prisma` дополнен `BookingStatus`, `NotificationType`, моделями `Slot`, `Booking`, `Notification` и связями `User.bookings`/`User.notifications`; `npx prisma contract emit` — успешно (`storageHash a8a421d6…`); `prisma/contract.json` содержит таблицы `Booking`, `Notification`, `Slot`, value sets `BookingStatus`, `NotificationType`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0 (Next.js 16.4.1, 7 маршрутов); `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0 (~22 с); `git diff --check` — замечаний нет (только предупреждения LF/CRLF).
+- Последняя проверка: Шаг 2 — CHECK-выражения `Slot` переведены на quoted identifiers (`"endsAt" > "startsAt"`, `"capacity" > 0`), контракт переэмитирован (`storageHash 2c4bfdd…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); пакет `prisma/migrations/app/20261017T1509_data_layer` (`e4cd210… → 2c4bfdd…`, 17 ops, 0 placeholders) применён к dev- и test-базе; `npx prisma db verify` на обеих базах — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `npm run db:migrate` — `No changes detected` / `Already up to date`; `migration check` — `All checks passed`; `psql` подтвердил CHECK, 4 FK, 9 индексов и частичный уникальный индекс, а транзакционный сценарий — отказ для неверного интервала, `capacity = 0` и второй активной брони; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0; `git diff --check` — без замечаний (только предупреждения LF/CRLF).
+
 - История 4.3.2: подробные шаги, проверки и журнал — в Git (`b42f50e` — итоговая проверка, `8bda8e0` — runbook, `96701d9` — автотесты и очистка сессий, `563ecc1` — проверки ролей и аккаунт, `1ab4383` — сессия и выход).
 
 ## 1.1 Исходное состояние (проверено)
@@ -78,11 +80,11 @@
 
 ## 4. Следующий активный пункт
 
-**Следующий активный пункт: Шаг 2 «Создать и применить миграцию» — `todo`.**
+**Следующий активный пункт: Шаг 3 «Расширить seed слотами» — `todo`.**
 
-Основание: Шаг 1 закрыт — контракт эмитирован, `Slot`, `Booking`, `Notification`, `BookingStatus` и `NotificationType` есть в `contract.json` и `contract.d.ts`; частичный уникальный индекс активной брони и CHECK-ограничения `Slot` объявлены в PSL и попали в контракт.
-Правило порядка: шаг 2 меняет только миграцию и базу; seed, DAL, тесты и `README.md` начинаются только после успешного `npm run db:migrate` и проверки ограничений. Частичный индекс и CHECK-ограничения должны прийти из контракта, а не дублироваться ручным SQL.
-Ограничение шага: не менять `app/`, `tests/`, `prisma/seed.ts`, `package.json` и `README.md`; новых зависимостей не вводить (NFR-9, CR-26). API Prisma 8 сверять по `npx prisma migration --help`, `npx prisma db --help` и скиллу `prisma-8`.
+Основание: Шаг 2 закрыт — миграция `20261017T1509_data_layer` применена к dev- и test-базе, `db verify` подтверждает контракт `storageHash 2c4bfdd…`, `migration status` — `Up to date`.
+Правило порядка: шаг 3 меняет только `prisma/seed.ts`; DAL, тесты и `README.md` начинаются только после проверки идемпотентного seed.
+Ограничение шага: не менять `prisma/schema.prisma`, `prisma/migrations/`, `app/`, `tests/`, `package.json` и `README.md`; новых зависимостей и переменных окружения не вводить (NFR-9, CR-26). Команды Prisma 8 и seed сверять по `package.json` и `npx prisma --help`.
 
 ## 5. Шаги
 
@@ -108,28 +110,28 @@
 - [x] Добавить `Notification`: `id`, `userId`, `bookingId?`, `type`, `message`, `readAt?`, `createdAt`; связи `user` (`onDelete: Cascade`) и `booking` (`onDelete: SetNull`), индексы `[userId, readAt]` и `[bookingId]`.
 - [x] Дополнить `User` связями `bookings Booking[]` и `notifications Notification[]`.
 - [x] Объявить частичный уникальный индекс активной брони в PSL: ``@@index([userId, slotId], unique: true, where: sql`status IN ('pending', 'confirmed')`, name: "Booking_active_user_slot_key")``; проверить, что он попал в контракт.
-- [x] Объявить CHECK-ограничения в PSL: ``@@check(expression: sql`endsAt > startsAt`, name: "Slot_endsAt_after_startsAt")`` и ``@@check(expression: sql`capacity > 0`, name: "Slot_capacity_positive")``; проверить, что они попали в контракт.
+- [x] Объявить CHECK-ограничения в PSL: ``@@check(expression: sql`"endsAt" > "startsAt"`, name: "Slot_endsAt_after_startsAt")`` и ``@@check(expression: sql`"capacity" > 0`, name: "Slot_capacity_positive")``; quoted identifiers обязательны, иначе PostgreSQL ищет `endsat`/`startsat`; проверить, что они попали в контракт.
 - [x] Использовать spelling Prisma 8: `@default(cuid(2))`, `temporal.createdAtJsDate()`, `temporal.updatedAtJsDate()`, `temporal.timestamptzJsDate()`; для nullable-дат — `TimestamptzJsDate?`, потому что preset `temporal.timestamptzJsDate()` не принимает `?`.
 - [x] Изменять только `prisma/schema.prisma` и эмитированные артефакты контракта; не создавать миграцию, seed, DAL, тесты и не менять `README.md`.
 - Действие: описать слой данных в PSL и эмитировать контракт.
 - Результат: контракт содержит три модели, два перечисления, типы связей, индексы и CHECK-ограничения; база пока не меняется.
-- Проверка: `npx prisma contract emit` — успешно, без диагностик (`storageHash a8a421d6…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); в `prisma/contract.json` есть таблицы `Booking`, `Notification`, `Slot` и value sets `BookingStatus`, `NotificationType`; индекс `Booking_active_user_slot_key_b8a2666e` имеет `unique: true` и `where: "status IN ('pending','confirmed')"`; CHECK `Slot_capacity_positive_2e07dccc` и `Slot_endsAt_after_startsAt_87918ae5` присутствуют; в `prisma/contract.d.ts` есть типы `Slot`, `Booking`, `Notification`, статус `'pending' | 'confirmed' | 'cancelled'` и nullable-даты с кодеком `pg/timestamptz-date@1`; `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0; `npm test` — 11/11, exit 0; новых файлов миграции, seed, DAL и тестов нет (`git status` показывает только `AGENTS.md`, `Plan.md`, `spec.md`, `prisma/schema.prisma`, `prisma/contract.json`, `prisma/contract.d.ts`); `git diff --check` — без замечаний (только предупреждения LF/CRLF).
+- Проверка: `npx prisma contract emit` — успешно, без диагностик (первичный emit — `storageHash a8a421d6…`; после исправления CHECK в шаге 2 — `storageHash 2c4bfdd…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); в `prisma/contract.json` есть таблицы `Booking`, `Notification`, `Slot` и value sets `BookingStatus`, `NotificationType`; индекс `Booking_active_user_slot_key_b8a2666e` имеет `unique: true` и `where: "status IN ('pending','confirmed')"`; CHECK `Slot_capacity_positive_a3711091` и `Slot_endsAt_after_startsAt_20c1ac54` присутствуют; в `prisma/contract.d.ts` есть типы `Slot`, `Booking`, `Notification`, статус `'pending' | 'confirmed' | 'cancelled'` и nullable-даты с кодеком `pg/timestamptz-date@1`; `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0; `npm test` — 11/11, exit 0; новых файлов миграции, seed, DAL и тестов нет (`git status` показывает только `AGENTS.md`, `Plan.md`, `spec.md`, `prisma/schema.prisma`, `prisma/contract.json`, `prisma/contract.d.ts`); `git diff --check` — без замечаний (только предупреждения LF/CRLF).
 - Статус: `done`.
 - Ошибки: первый emit отклонён с `PSL_PRESET_NOT_OPTIONAL` для `temporal.timestamptzJsDate()?` в `Booking.confirmedAt`, `Booking.cancelledAt`, `Notification.readAt`; поля переведены на `TimestamptzJsDate?`, повторный emit прошёл.
 - Следующий шаг: Шаг 2.
 
-### Шаг 2. Создать и применить миграцию — `todo`
+### Шаг 2. Создать и применить миграцию — `done`
 
-- [ ] `npx prisma migration plan --name data_layer`; проверить `ops.json` и `migration.ts`.
-- [ ] Проверить, что миграция создаёт CHECK-ограничения `endsAt > startsAt` и `capacity > 0`, внешние ключи и индексы из PSL; вручную SQL не дублировать.
-- [ ] Проверить, что планировщик создаёт частичный уникальный индекс активной брони из PSL (`Booking_active_user_slot_key_*`, `WHERE status IN ('pending','confirmed')`); вручную SQL не дублировать, иначе `db verify` увидит лишний индекс.
-- [ ] Применить миграцию к базе разработки: `npm run db:migrate`; тестовую базу мигрировать `npx prisma db migrate --db "<url из .env.test>"`.
-- [ ] Проверить ограничения через `psql` и `npx prisma db verify`/`npx prisma migration status`.
+- [x] `npx prisma migration plan --name data_layer`; проверить `ops.json` и `migration.ts`.
+- [x] Проверить, что миграция создаёт CHECK-ограничения `"endsAt" > "startsAt"` и `"capacity" > 0`, внешние ключи и индексы из PSL; вручную SQL не дублировать.
+- [x] Проверить, что планировщик создаёт частичный уникальный индекс активной брони из PSL (`Booking_active_user_slot_key_b8a2666e`, `WHERE status IN ('pending','confirmed')`); вручную SQL не дублировать, иначе `db verify` увидит лишний индекс.
+- [x] Применить миграцию к базе разработки: `npx prisma db migrate --advance-ref db`; затем `npm run db:migrate` — no-op; тестовую базу мигрировать `npx prisma db migrate --db "<url из .env.test>"`.
+- [x] Проверить ограничения через `psql` и `npx prisma db verify`/`npx prisma migration status`.
 - Действие: применить контракт к PostgreSQL с ограничениями целостности.
-- Результат: таблицы `Slot`, `Booking`, `Notification` созданы; недопустимые интервалы, вместимость и вторая активная бронь отклоняются базой.
-- Проверка: `npm run db:migrate` — миграция применена, повторный запуск — no-op; в `ops.json`/`migration.ts` есть CHECK-ограничения, `CREATE UNIQUE INDEX ... WHERE status IN ('pending','confirmed')`, внешние ключи и индексы; `npx prisma db verify` — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `psql` показывает CHECK-ограничения, внешние ключи, индексы и частичный уникальный индекс.
-- Статус: `todo`.
-- Ошибки: —
+- Результат: таблицы `Slot`, `Booking`, `Notification` созданы; недопустимые интервалы, вместимость и вторая активная бронь отклоняются базой; тестовая база мигрирована тем же пакетом.
+- Проверка: пакет `prisma/migrations/app/20261017T1509_data_layer` (`from e4cd210… → to 2c4bfdd…`, 17 ops, 0 placeholders) применён к dev- и test-базе; `npx prisma db verify` на обеих базах — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `npm run db:migrate` — `No changes detected` / `Already up to date`; `npx prisma migration check` — `All checks passed`; в `ops.json`/`migration.ts` есть `CHECK ("capacity" > 0)`, `CHECK ("endsAt" > "startsAt")`, CHECK статуса/типа, 4 FK, 9 индексов и `CREATE UNIQUE INDEX ... WHERE (status IN ('pending', 'confirmed'))`; `psql` показывает 29 строк ограничений (включая NOT NULL) и 13 строк индексов (включая PK и unique), а транзакционный сценарий — отказ для `endsAt <= startsAt`, `capacity = 0` и второй активной брони при допустимой `cancelled`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 11/11, exit 0.
+- Статус: `done`.
+- Ошибки: первый `db migrate` упал с `MIGRATION.RUNNER_FAILED`: CHECK из PSL был без quoted identifiers, PostgreSQL искал `endsat`; транзакция откатилась. Исправлено на `"endsAt" > "startsAt"` и `"capacity" > 0`, контракт переэмитирован (`storageHash 2c4bfdd…`). Повторный `npm run db:migrate` после явного `migration plan` создал форк-дубль `20261017T1508_migration`; оба старых пакета и snapshot `a8a421d…` удалены, миграция пересобрана как `20261017T1509_data_layer`, ref `db` продвинут через `--advance-ref db`.
 - Следующий шаг: Шаг 3.
 
 ### Шаг 3. Расширить seed слотами — `todo`
@@ -256,7 +258,7 @@
 - `AGENTS.md` — правила работы агента в фазе `4.3.3`.
 - `prisma/schema.prisma` — единственный PSL-контракт; расширяется моделями `Slot`, `Booking`, `Notification`, перечислениями `BookingStatus`, `NotificationType`, частичным уникальным индексом активной брони и CHECK-ограничениями `Slot`.
 - `prisma/contract.json`, `prisma/contract.d.ts` — эмитированные артефакты; руками не правятся.
-- `prisma/migrations/app/` — история миграций; новая миграция создаётся `npx prisma migration plan --name data_layer` и применяется `npm run db:migrate`.
+- `prisma/migrations/app/` — история миграций; новая миграция создаётся `npx prisma migration plan --name data_layer` и применяется `npx prisma db migrate --advance-ref db`; после этого `npm run db:migrate` — no-op.
 - `prisma/seed.ts` — существующий `super_admin` плюс идемпотентные слоты начиная с завтрашнего дня на 7 дней вперёд.
 - `app/lib/db.ts` — единственный клиент Prisma; новые модули используют его, а не создают второй клиент.
 - `app/lib/slots.ts`, `app/lib/bookings.ts`, `app/lib/notifications.ts` — новые серверные модули слоя данных.
@@ -271,7 +273,9 @@
 ```powershell
 npx prisma contract emit
 npx prisma migration plan --name data_layer
+npx prisma db migrate --advance-ref db
 npm run db:migrate
+npx prisma db migrate --db "<url из .env.test>"
 npm run db:seed
 npx prisma db verify
 npx prisma migration status
@@ -287,6 +291,8 @@ npm test
 | --- | --- | --- | --- |
 | 17.10.2026 | Шаг 0. Обновить `spec.md` под слой данных | Сверка `spec.md`, `AGENTS.md`, `Plan.md`; `npm run lint`; `npx tsc --noEmit`; `npm run build`; `npm test`; `git diff --check` | `spec.md` дополнен `Slot`, `Booking`, `Notification`, `BookingStatus`, `NotificationType`, ER-диаграммой, таблицей переходов, инвариантами и `CR-33`…`CR-41`; `AGENTS.md` переведён на `4.3.3`, запрет на слой данных снят, границы фазы переписаны; `Plan.md` открывает новый цикл; lint/tsc/build — exit 0, `npm test` — 11/11, diff-check без замечаний |
 | 17.10.2026 | Шаг 1. Расширить Prisma-контракт | `npx prisma contract emit`; проверка `contract.json`/`contract.d.ts`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | В PSL добавлены `BookingStatus`, `NotificationType`, модели `Slot`, `Booking`, `Notification`, связи `User`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; nullable-даты используют `TimestamptzJsDate?`; emit успешен (`storageHash a8a421d6…`), tsc/lint/build — exit 0, `npm test` — 11/11, лишних файлов нет, diff-check без замечаний |
+| 17.10.2026 | Шаг 2. Создать и применить миграцию | `npx prisma contract emit`; `npx prisma migration plan --name data_layer`; `npx prisma db migrate --advance-ref db`; `npm run db:migrate`; миграция test-базы; `npx prisma db verify` (dev/test); `npx prisma migration status` (dev/test); `npx prisma migration check`; `psql` — ограничения, индексы и транзакционные проверки; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check` | Пакет `20261017T1509_data_layer` (17 ops) применён к dev- и test-базе; CHECK `Slot` исправлены на quoted identifiers, контракт `storageHash 2c4bfdd…`; `db verify` — совпадение, `migration status` — `Up to date`, `npm run db:migrate` — no-op; psql подтвердил CHECK/FK/индексы/partial unique и откат недопустимых вставок; tsc/lint/build — exit 0, `npm test` — 11/11, diff-check без замечаний |
+
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 

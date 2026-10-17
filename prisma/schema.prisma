@@ -54,8 +54,8 @@ model Slot {
 
   @@unique([startsAt, endsAt])
   @@index([startsAt])
-  @@check(expression: sql`endsAt > startsAt`, name: "Slot_endsAt_after_startsAt")
-  @@check(expression: sql`capacity > 0`, name: "Slot_capacity_positive")
+  @@check(expression: sql`"endsAt" > "startsAt"`, name: "Slot_endsAt_after_startsAt")
+  @@check(expression: sql`"capacity" > 0`, name: "Slot_capacity_positive")
 }
 
 model Booking {

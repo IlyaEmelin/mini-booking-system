@@ -1,0 +1,680 @@
+[
+  {
+    "id": "table.Booking",
+    "label": "Create table \"Booking\"",
+    "summary": "Creates table \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Booking\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Booking\"",
+        "sql": "CREATE TABLE \"public\".\"Booking\" (\n  \"cancelledAt\" timestamptz,\n  \"confirmedAt\" timestamptz,\n  \"createdAt\" timestamptz NOT NULL,\n  \"id\" text NOT NULL,\n  \"slotId\" text NOT NULL,\n  \"status\" text DEFAULT 'pending' NOT NULL,\n  \"updatedAt\" timestamptz NOT NULL,\n  \"userId\" text NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"Booking_status_check_2ea04269\" CHECK (\"status\" IN ('pending', 'confirmed', 'cancelled'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Booking\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Notification",
+    "label": "Create table \"Notification\"",
+    "summary": "Creates table \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Notification\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Notification\"",
+        "sql": "CREATE TABLE \"public\".\"Notification\" (\n  \"bookingId\" text,\n  \"createdAt\" timestamptz NOT NULL,\n  \"id\" text NOT NULL,\n  \"message\" text NOT NULL,\n  \"readAt\" timestamptz,\n  \"type\" text NOT NULL,\n  \"userId\" text NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"Notification_type_check_fb86c23a\" CHECK (\"type\" IN ('booking_created', 'booking_confirmed', 'booking_cancelled'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Notification\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Slot",
+    "label": "Create table \"Slot\"",
+    "summary": "Creates table \"Slot\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Slot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Slot\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Slot\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Slot\"",
+        "sql": "CREATE TABLE \"public\".\"Slot\" (\n  \"capacity\" int4 DEFAULT 1 NOT NULL,\n  \"createdAt\" timestamptz NOT NULL,\n  \"endsAt\" timestamptz NOT NULL,\n  \"id\" text NOT NULL,\n  \"startsAt\" timestamptz NOT NULL,\n  \"updatedAt\" timestamptz NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"Slot_capacity_positive_a3711091\" CHECK (\"capacity\" > 0),\n  CONSTRAINT \"Slot_endsAt_after_startsAt_20c1ac54\" CHECK (\"endsAt\" > \"startsAt\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Slot\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Slot\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.Slot.Slot_startsAt_endsAt_key",
+    "label": "Add unique constraint on \"Slot\" (startsAt, endsAt)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "Slot_startsAt_endsAt_key",
+        "table": "Slot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"Slot_startsAt_endsAt_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Slot_startsAt_endsAt_key",
+          "public",
+          "\"public\".\"Slot\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"Slot_startsAt_endsAt_key\"",
+        "sql": "ALTER TABLE \"public\".\"Slot\" ADD CONSTRAINT \"Slot_startsAt_endsAt_key\" UNIQUE (\"startsAt\", \"endsAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"Slot_startsAt_endsAt_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Slot_startsAt_endsAt_key",
+          "public",
+          "\"public\".\"Slot\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Booking.Booking_active_user_slot_key_b8a2666e",
+    "label": "Create index \"Booking_active_user_slot_key_b8a2666e\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Booking_active_user_slot_key_b8a2666e",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Booking_active_user_slot_key_b8a2666e\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_active_user_slot_key_b8a2666e\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Booking_active_user_slot_key_b8a2666e\"",
+        "sql": "CREATE UNIQUE INDEX \"Booking_active_user_slot_key_b8a2666e\" ON \"public\".\"Booking\" (\"userId\", \"slotId\") WHERE (status IN ('pending', 'confirmed'))",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Booking_active_user_slot_key_b8a2666e\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_active_user_slot_key_b8a2666e\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Booking.Booking_slotId_idx_4d7c6bc9",
+    "label": "Create index \"Booking_slotId_idx_4d7c6bc9\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Booking_slotId_idx_4d7c6bc9",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Booking_slotId_idx_4d7c6bc9\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_slotId_idx_4d7c6bc9\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Booking_slotId_idx_4d7c6bc9\"",
+        "sql": "CREATE INDEX \"Booking_slotId_idx_4d7c6bc9\" ON \"public\".\"Booking\" (\"slotId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Booking_slotId_idx_4d7c6bc9\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_slotId_idx_4d7c6bc9\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Booking.Booking_slotId_status_idx_f2571da7",
+    "label": "Create index \"Booking_slotId_status_idx_f2571da7\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Booking_slotId_status_idx_f2571da7",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Booking_slotId_status_idx_f2571da7\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_slotId_status_idx_f2571da7\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Booking_slotId_status_idx_f2571da7\"",
+        "sql": "CREATE INDEX \"Booking_slotId_status_idx_f2571da7\" ON \"public\".\"Booking\" (\"slotId\", \"status\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Booking_slotId_status_idx_f2571da7\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_slotId_status_idx_f2571da7\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Booking.Booking_userId_idx_a489d58a",
+    "label": "Create index \"Booking_userId_idx_a489d58a\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Booking_userId_idx_a489d58a",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Booking_userId_idx_a489d58a\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_userId_idx_a489d58a\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Booking_userId_idx_a489d58a\"",
+        "sql": "CREATE INDEX \"Booking_userId_idx_a489d58a\" ON \"public\".\"Booking\" (\"userId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Booking_userId_idx_a489d58a\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_userId_idx_a489d58a\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Booking.Booking_userId_status_idx_e4a128ba",
+    "label": "Create index \"Booking_userId_status_idx_e4a128ba\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Booking_userId_status_idx_e4a128ba",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Booking_userId_status_idx_e4a128ba\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_userId_status_idx_e4a128ba\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Booking_userId_status_idx_e4a128ba\"",
+        "sql": "CREATE INDEX \"Booking_userId_status_idx_e4a128ba\" ON \"public\".\"Booking\" (\"userId\", \"status\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Booking_userId_status_idx_e4a128ba\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Booking_userId_status_idx_e4a128ba\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Notification.Notification_bookingId_idx_17848f4a",
+    "label": "Create index \"Notification_bookingId_idx_17848f4a\" on \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Notification_bookingId_idx_17848f4a",
+        "table": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Notification_bookingId_idx_17848f4a\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_bookingId_idx_17848f4a\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Notification_bookingId_idx_17848f4a\"",
+        "sql": "CREATE INDEX \"Notification_bookingId_idx_17848f4a\" ON \"public\".\"Notification\" (\"bookingId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Notification_bookingId_idx_17848f4a\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_bookingId_idx_17848f4a\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Notification.Notification_userId_idx_a489d58a",
+    "label": "Create index \"Notification_userId_idx_a489d58a\" on \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Notification_userId_idx_a489d58a",
+        "table": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Notification_userId_idx_a489d58a\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_userId_idx_a489d58a\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Notification_userId_idx_a489d58a\"",
+        "sql": "CREATE INDEX \"Notification_userId_idx_a489d58a\" ON \"public\".\"Notification\" (\"userId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Notification_userId_idx_a489d58a\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_userId_idx_a489d58a\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Notification.Notification_userId_readAt_idx_8bd92969",
+    "label": "Create index \"Notification_userId_readAt_idx_8bd92969\" on \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Notification_userId_readAt_idx_8bd92969",
+        "table": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Notification_userId_readAt_idx_8bd92969\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_userId_readAt_idx_8bd92969\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Notification_userId_readAt_idx_8bd92969\"",
+        "sql": "CREATE INDEX \"Notification_userId_readAt_idx_8bd92969\" ON \"public\".\"Notification\" (\"userId\", \"readAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Notification_userId_readAt_idx_8bd92969\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Notification_userId_readAt_idx_8bd92969\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Slot.Slot_startsAt_idx_5ff0df68",
+    "label": "Create index \"Slot_startsAt_idx_5ff0df68\" on \"Slot\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Slot_startsAt_idx_5ff0df68",
+        "table": "Slot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Slot_startsAt_idx_5ff0df68\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Slot_startsAt_idx_5ff0df68\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Slot_startsAt_idx_5ff0df68\"",
+        "sql": "CREATE INDEX \"Slot_startsAt_idx_5ff0df68\" ON \"public\".\"Slot\" (\"startsAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Slot_startsAt_idx_5ff0df68\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Slot_startsAt_idx_5ff0df68\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Booking.Booking_userId_fkey",
+    "label": "Add foreign key \"Booking_userId_fkey\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Booking_userId_fkey",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Booking_userId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Booking_userId_fkey",
+          "public",
+          "\"public\".\"Booking\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Booking_userId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Booking\"\nADD CONSTRAINT \"Booking_userId_fkey\"\nFOREIGN KEY (\"userId\")\nREFERENCES \"public\".\"User\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Booking_userId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Booking_userId_fkey",
+          "public",
+          "\"public\".\"Booking\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Booking.Booking_slotId_fkey",
+    "label": "Add foreign key \"Booking_slotId_fkey\" on \"Booking\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Booking_slotId_fkey",
+        "table": "Booking"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Booking_slotId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Booking_slotId_fkey",
+          "public",
+          "\"public\".\"Booking\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Booking_slotId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Booking\"\nADD CONSTRAINT \"Booking_slotId_fkey\"\nFOREIGN KEY (\"slotId\")\nREFERENCES \"public\".\"Slot\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Booking_slotId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Booking_slotId_fkey",
+          "public",
+          "\"public\".\"Booking\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Notification.Notification_userId_fkey",
+    "label": "Add foreign key \"Notification_userId_fkey\" on \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Notification_userId_fkey",
+        "table": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Notification_userId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Notification_userId_fkey",
+          "public",
+          "\"public\".\"Notification\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Notification_userId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Notification\"\nADD CONSTRAINT \"Notification_userId_fkey\"\nFOREIGN KEY (\"userId\")\nREFERENCES \"public\".\"User\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Notification_userId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Notification_userId_fkey",
+          "public",
+          "\"public\".\"Notification\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Notification.Notification_bookingId_fkey",
+    "label": "Add foreign key \"Notification_bookingId_fkey\" on \"Notification\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Notification_bookingId_fkey",
+        "table": "Notification"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Notification_bookingId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Notification_bookingId_fkey",
+          "public",
+          "\"public\".\"Notification\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Notification_bookingId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Notification\"\nADD CONSTRAINT \"Notification_bookingId_fkey\"\nFOREIGN KEY (\"bookingId\")\nREFERENCES \"public\".\"Booking\" (\"id\")\nON DELETE SET NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Notification_bookingId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Notification_bookingId_fkey",
+          "public",
+          "\"public\".\"Notification\""
+        ]
+      }
+    ]
+  }
+]
