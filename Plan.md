@@ -11,9 +11,9 @@
 - Ограничение объёма: не реализовывать пользовательский booking flow (страницы слотов, формы создания/переноса/отмены брони, экран уведомлений), административные функции, внешние каналы (email, SMS, calendar, desktop), deploy и новые зависимости.
 - Контекстные файлы: `spec.md`, `Plan.md`, `AGENTS.md`; финальный runbook — `README.md`.
 - `README.md` на шаге 0 может описывать предыдущую фазу; он обновляется только на шаге 8 после реализации и проверок.
-- Следующий шаг: **Шаг 4 «Собрать серверный модуль слотов»** — `todo`. Шаг 3 закрыт.
+- Следующий шаг: **Шаг 5 «Собрать серверный модуль броней и переходы»** — `todo`. Шаг 4 закрыт.
 - Предыдущая проверка: Шаг 2 — CHECK-выражения `Slot` переведены на quoted identifiers (`"endsAt" > "startsAt"`, `"capacity" > 0`), контракт переэмитирован (`storageHash 2c4bfdd…`, `executionHash a7fc921b…`, `profileHash 3916f444…`); пакет `20261017T1509_data_layer` (`e4cd210… → 2c4bfdd…`, 17 ops, 0 placeholders) применён к dev- и test-базе; `npx prisma db verify` на обеих базах — `Database marker and schema match contract`; `npx prisma migration status` — `Up to date`; `npm run db:migrate` — no-op; `migration check` — `All checks passed`; `psql` подтвердил CHECK, 4 FK, 9 индексов и частичный уникальный индекс, а транзакционный сценарий — отказ для неверного интервала, `capacity = 0` и второй активной брони; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 11/11, exit 0; `git diff --check` — без замечаний.
-- Последняя проверка: Шаг 3 — `prisma/seed.ts` создаёт 14 слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`) идемпотентно по паре `startsAt` + `endsAt`; первый запуск — `создано 14, уже было 0`, второй и третий — `создано 0, уже было 14`, общее число `Slot` 14 не изменилось; `super_admin` — 1; `psql` подтвердил даты 18.10–24.10.2026, интервалы 60 минут и `capacity = 1`; `npx prisma db verify` — `Database marker and schema match contract`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 11 / suites 5 / pass 11 / fail 0`, exit 0; `git diff --check` — без замечаний.
+- Последняя проверка: Шаг 4 — `app/lib/slots.ts` возвращает только будущие слоты по возрастанию `startsAt`, считает `activeBookings` (`pending` + `confirmed`) и `availableCapacity`, для неизвестного id — `null`; `tests/slots.test.ts` на тестовой базе проверил прошедший слот, сортировку, вместимость, отменённую бронь, прошедший слот с `isUpcoming = false` и `null`; `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — `tests 16 / suites 7 / pass 16 / fail 0`, повторный прогон 16/16; `git diff --check` — exit 0.
 
 - История 4.3.2: подробные шаги, проверки и журнал — в Git (`b42f50e` — итоговая проверка, `8bda8e0` — runbook, `96701d9` — автотесты и очистка сессий, `563ecc1` — проверки ролей и аккаунт, `1ab4383` — сессия и выход).
 
@@ -148,17 +148,17 @@
 - Ошибки: проверочный `psql` в Windows сначала потерял кавычки идентификаторов (`отношение "slot" не существует`); это ошибка команды проверки, а не seed — SQL повторён через stdin (`psql -f -`) и прошёл. Код seed ошибок не дал.
 - Следующий шаг: Шаг 4.
 
-### Шаг 4. Собрать серверный модуль слотов — `todo`
+### Шаг 4. Собрать серверный модуль слотов — `done`
 
-- [ ] Создать `app/lib/slots.ts` с `import "server-only"`.
-- [ ] Реализовать `listUpcomingSlots(now = new Date())`: только слоты с `startsAt > now`, сортировка по `startsAt`.
-- [ ] Реализовать `getSlotAvailability(slotId, now = new Date())`: слот, число активных броней (`pending` + `confirmed`), свободная вместимость; для несуществующего слота — `null`.
-- [ ] Не принимать идентификатор пользователя: модуль не раскрывает чужие данные и не используется клиентскими компонентами.
-- [ ] Закрывать соединение с базой в тестах и скриптах, а не в модуле приложения.
+- [x] Создать `app/lib/slots.ts` с `import "server-only"`.
+- [x] Реализовать `listUpcomingSlots(now = new Date())`: только слоты с `startsAt > now`, сортировка по `startsAt`.
+- [x] Реализовать `getSlotAvailability(slotId, now = new Date())`: слот, число активных броней (`pending` + `confirmed`), свободная вместимость; для несуществующего слота — `null`.
+- [x] Не принимать идентификатор пользователя: модуль не раскрывает чужие данные и не используется клиентскими компонентами.
+- [x] Закрывать соединение с базой в тестах и скриптах, а не в модуле приложения.
 - Действие: дать серверный API чтения слотов и их доступности.
-- Результат: будущие слоты и остаток вместимости считаются на сервере по данным базы.
-- Проверка: `npx tsc --noEmit`, `npm run lint` — без ошибок; юнит-проверка на тестовой базе возвращает только будущие слоты, корректный остаток вместимости и `null` для неизвестного слота.
-- Статус: `todo`.
+- Результат: `app/lib/slots.ts` отдаёт будущие слоты с `activeBookings` и `availableCapacity`; `tests/slots.test.ts` проверяет список, доступность и `null` для неизвестного id на отдельной тестовой базе.
+- Проверка: `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 16/16, exit 0; повторный `npm test` — 16/16 (идемпотентность тестовой очистки); `git diff --check` — exit 0. Для последовательного доступа тестовых файлов к одной тестовой базе `npm test` запускается с `--test-concurrency=1`; имена скриптов не изменились.
+- Статус: `done`.
 - Ошибки: —
 - Следующий шаг: Шаг 5.
 
@@ -293,7 +293,7 @@ npm test
 | 17.10.2026 | Шаг 1. Расширить Prisma-контракт | `npx prisma contract emit`; проверка `contract.json`/`contract.d.ts`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | В PSL добавлены `BookingStatus`, `NotificationType`, модели `Slot`, `Booking`, `Notification`, связи `User`, частичный уникальный индекс активной брони и CHECK-ограничения `Slot`; nullable-даты используют `TimestamptzJsDate?`; emit успешен (`storageHash a8a421d6…`), tsc/lint/build — exit 0, `npm test` — 11/11, лишних файлов нет, diff-check без замечаний |
 | 17.10.2026 | Шаг 2. Создать и применить миграцию | `npx prisma contract emit`; `npx prisma migration plan --name data_layer`; `npx prisma db migrate --advance-ref db`; `npm run db:migrate`; миграция test-базы; `npx prisma db verify` (dev/test); `npx prisma migration status` (dev/test); `npx prisma migration check`; `psql` — ограничения, индексы и транзакционные проверки; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check` | Пакет `20261017T1509_data_layer` (17 ops) применён к dev- и test-базе; CHECK `Slot` исправлены на quoted identifiers, контракт `storageHash 2c4bfdd…`; `db verify` — совпадение, `migration status` — `Up to date`, `npm run db:migrate` — no-op; psql подтвердил CHECK/FK/индексы/partial unique и откат недопустимых вставок; tsc/lint/build — exit 0, `npm test` — 11/11, diff-check без замечаний |
 | 17.10.2026 | Шаг 3. Расширить seed слотами | `npm run db:seed` (3 запуска); `psql` — 14 слотов, окна/интервалы/capacity, 1 `super_admin`; `npx prisma db verify`; `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; `git status` | `prisma/seed.ts` дополнен идемпотентным созданием 14 слотов (7 дней × 2 окна, 10:00/15:00 UTC, 60 минут, `capacity = 1`); первый запуск — `создано 14`, повторные — `создано 0, уже было 14`, количество `Slot` 14 не изменилось; `super_admin` — 1; db verify/tsc/lint/build — exit 0; `npm test` — 11/11; diff-check без замечаний |
-
+| 17.10.2026 | Шаг 4. Собрать серверный модуль слотов | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (два прогона); `git diff --check` | `app/lib/slots.ts` добавлен: `listUpcomingSlots` фильтрует `startsAt > now`, сортирует по `startsAt`, считает relation-`count()` активных броней и `availableCapacity`; `getSlotAvailability` возвращает `null` для неизвестного id; `tests/slots.test.ts` — 5 проверок на тестовой базе; tsc/lint/build — exit 0; `npm test` — 16/16 дважды; diff-check — exit 0 |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 

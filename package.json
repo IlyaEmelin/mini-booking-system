@@ -11,7 +11,7 @@
     "db:migrate": "prisma migration plan && prisma db migrate",
     "db:seed": "tsx prisma/seed.ts",
     "sessions:cleanup": "tsx scripts/cleanup-sessions.ts",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 tests/**/*.test.ts"
   },
   "dependencies": {
     "@prisma/orm-postgres": "8.0.0-rc.18",
