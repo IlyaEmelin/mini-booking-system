@@ -82,17 +82,30 @@ export type BookingSummary = Readonly<{
 }>;
 
 /**
- * Сводка брони для административного списка (FR-33). Владелец представлен
- * только email: `passwordHash`, `userId` и служебные поля наружу не уходят.
+ * Слот в административной сводке: к окну брони добавлена вместимость, но поля
+ * владельца остаются отдельно и только в административном DTO (FR-33, NFR-20).
+ */
+export type AdminBookingSlotSummary = Readonly<
+  BookingSlotSummary & {
+    capacity: number;
+  }
+>;
+
+/**
+ * Сводка брони для административного списка и детализации (FR-33, FR-37).
+ * Владелец представлен `id`, email и отображаемым именем; `passwordHash`,
+ * `tokenHash`, `userId` и служебные поля наружу не уходят (NFR-20).
  */
 export type AdminBookingSummary = Readonly<{
   id: string;
+  ownerId: string;
   ownerEmail: string;
+  ownerDisplayName: string | null;
   status: BookingStatus;
   createdAt: Date;
   confirmedAt: Date | null;
   cancelledAt: Date | null;
-  slot: BookingSlotSummary;
+  slot: AdminBookingSlotSummary;
   /** Слот ещё не начался на момент чтения: условие подтверждения (FR-33). */
   isSlotUpcoming: boolean;
 }>;
@@ -115,6 +128,21 @@ type BookingSummaryRow = Readonly<{
   confirmedAt: Date | null;
   cancelledAt: Date | null;
   slot: BookingSlotSummary;
+}>;
+
+/** Строка административной брони вместе с владельцем и вместимостью слота. */
+type AdminBookingRow = Readonly<{
+  id: string;
+  status: BookingStatus;
+  createdAt: Date;
+  confirmedAt: Date | null;
+  cancelledAt: Date | null;
+  slot: AdminBookingSlotSummary | null;
+  user: Readonly<{
+    id: string;
+    email: string;
+    displayName: string | null;
+  }> | null;
 }>;
 
 /** Признак роли администратора: подтверждение и отмена чужой брони (FR-25). */
@@ -140,6 +168,40 @@ function toBookingSummary(
       startsAt: booking.slot.startsAt,
       endsAt: booking.slot.endsAt,
     },
+  };
+}
+
+/**
+ * Приводит административную строку к DTO списка и детализации. Владелец и
+ * вместимость нужны только этому DTO; `userId`, хеши и служебные поля не
+ * копируются (FR-33, FR-37, NFR-20).
+ */
+function toAdminBookingSummary(
+  booking: AdminBookingRow,
+  checkedAt: Date,
+): AdminBookingSummary {
+  if (booking.slot === null || booking.user === null) {
+    throw new Error(
+      "Нарушена ссылочная целостность брони: слот или владелец не найден",
+    );
+  }
+
+  return {
+    id: booking.id,
+    ownerId: booking.user.id,
+    ownerEmail: booking.user.email,
+    ownerDisplayName: booking.user.displayName,
+    status: booking.status,
+    createdAt: booking.createdAt,
+    confirmedAt: booking.confirmedAt,
+    cancelledAt: booking.cancelledAt,
+    slot: {
+      id: booking.slot.id,
+      startsAt: booking.slot.startsAt,
+      endsAt: booking.slot.endsAt,
+      capacity: booking.slot.capacity,
+    },
+    isSlotUpcoming: booking.slot.startsAt.getTime() > checkedAt.getTime(),
   };
 }
 
@@ -472,9 +534,10 @@ export async function listMyBookings(
  * Все брони для административного списка (FR-33, CR-44).
  *
  * Роль проверяется по базе внутри функции до чтения броней: роль `user` не
- * должна узнать, существуют ли чужие записи. Наружу уходит email владельца,
- * слот, статус и даты, но не `passwordHash` и не `userId`. Новые брони
- * возвращаются первыми.
+ * должна узнать, существуют ли чужие записи. Наружу уходит владелец (`id`,
+ * email, `displayName`), слот с вместимостью, статус и даты, но не
+ * `passwordHash`, `tokenHash` и не служебные поля. Новые брони возвращаются
+ * первыми.
  */
 export async function listAllBookings(
   actor: SessionUser,
@@ -489,32 +552,50 @@ export async function listAllBookings(
     const checkedAt = now ?? new Date();
     const rows = await tx.orm.public.Booking
       .select("id", "status", "createdAt", "confirmedAt", "cancelledAt")
-      .include("slot", (slot) => slot.select("id", "startsAt", "endsAt"))
-      .include("user", (user) => user.select("email"))
+      .include("slot", (slot) =>
+        slot.select("id", "startsAt", "endsAt", "capacity"),
+      )
+      .include("user", (user) => user.select("id", "email", "displayName"))
       .orderBy((booking) => booking.createdAt.desc())
       .all();
 
-    return rows.map((row) => {
-      if (row.slot === null || row.user === null) {
-        throw new Error(
-          "Нарушена ссылочная целостность брони: слот или владелец не найден",
-        );
-      }
+    return rows.map((row) => toAdminBookingSummary(row, checkedAt));
+  });
+}
 
-      return {
-        id: row.id,
-        ownerEmail: row.user.email,
-        status: row.status,
-        createdAt: row.createdAt,
-        confirmedAt: row.confirmedAt,
-        cancelledAt: row.cancelledAt,
-        slot: {
-          id: row.slot.id,
-          startsAt: row.slot.startsAt,
-          endsAt: row.slot.endsAt,
-        },
-        isSlotUpcoming: row.slot.startsAt.getTime() > checkedAt.getTime(),
-      };
-    });
+/**
+ * Детализация произвольной брони для администратора (FR-33, FR-37).
+ *
+ * `actor.id` не используется как фильтр владельца: администратор читает любую
+ * бронь по идентификатору, включая `cancelled`. Роль перечитывается из базы до
+ * чтения, чтобы устаревший снимок сессии не давал доступ. Неизвестный
+ * идентификатор возвращает `null`; `notFound()` вызывает страница. DTO не
+ * содержит `passwordHash`, `tokenHash`, `userId` и служебные поля.
+ */
+export async function getAdminBooking(
+  actor: SessionUser,
+  bookingId: string,
+): Promise<AdminBookingSummary | null> {
+  return db.transaction(async (tx) => {
+    const role = await loadCurrentRole(tx, actor.id);
+    if (!isAdminRole(role)) {
+      throw new BookingError("FORBIDDEN");
+    }
+
+    const checkedAt = new Date();
+    const row = await tx.orm.public.Booking
+      .select("id", "status", "createdAt", "confirmedAt", "cancelledAt")
+      .include("slot", (slot) =>
+        slot.select("id", "startsAt", "endsAt", "capacity"),
+      )
+      .include("user", (user) => user.select("id", "email", "displayName"))
+      .where({ id: bookingId })
+      .first();
+
+    if (row === null) {
+      return null;
+    }
+
+    return toAdminBookingSummary(row, checkedAt);
   });
 }

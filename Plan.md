@@ -4,9 +4,9 @@
 
 - Дата: 18.10.2026.
 - Активный пункт: раздел 6 — публичное расписание, общий `header` и детализация брони.
-- Последнее изменение: шаг 6.2 выполнен — в `app/lib/slots.ts` добавлен ролевой DTO расписания и `listUpcomingSchedule`; UI и `prisma/` не изменялись.
+- Последнее изменение: шаг 6.3 выполнен — `AdminBookingSummary` расширен владельцем и `capacity`, `listAllBookings` обновлён, добавлен `getAdminBooking`; UI и `prisma/` не изменялись.
 - Документ дизайна: [`docs/design/home-slots-and-header.md`](docs/design/home-slots-and-header.md).
-- Следующий шаг: 6.3 — административная сводка и `getAdminBooking` в `app/lib/bookings.ts`.
+- Следующий шаг: 6.4 — защищённая детализация `/admin/bookings/[id]`.
 - Последний закрытый цикл: `4.3.4 simplified booking flow`.
 - Закрытый план: [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).
 - Новый объём работ начинается только после обновления `spec.md` и отдельного пункта в этом файле.
@@ -61,7 +61,7 @@
 
 ## 6. Активный пункт: публичное расписание, общий `header` и детализация брони
 
-- Статус: активен; шаги 6.1 и 6.2 завершены, следующий — 6.3.
+- Статус: активен; шаги 6.1–6.3 завершены, следующий — 6.4.
 - Источники: `spec.md` — FR-30, FR-33…FR-38, NFR-19…NFR-22, CR-42, CR-44, CR-47…CR-53; `docs/design/home-slots-and-header.md` — разделы 2…10.
 - Цель: `/` и `/slots` показывают одно публичное расписание всех будущих слотов горизонта; `guest`/`user` не получают PII владельцев, `admin`/`super_admin` видят активные брони и переходят в `/admin/bookings/[id]`; общий серверный `header` строится по роли.
 - Границы: не менять модели, миграции, роли, статусы, зависимости, auth-контур и цветовую палитру; не добавлять поиск, фильтры, пагинацию, перенос брони, возврат к слоту после входа и управление пользователями.
@@ -124,17 +124,23 @@
 
 ### 6.3. Административная сводка и `getAdminBooking` в `app/lib/bookings.ts`
 
-- [ ] Расширить `AdminBookingSummary`: `ownerId`, `ownerDisplayName: string | null`, `ownerEmail`; вложенный слот дополнить `capacity` (отдельный административный тип слота, чтобы не расширять `BookingSummary` владельца).
-- [ ] В `listAllBookings` выбирать `User.id`, `User.email`, `User.displayName`; маппить `ownerId: row.user.id`, `ownerDisplayName: row.user.displayName`; `passwordHash` не выбирать.
-- [ ] Добавить `getAdminBooking(actor: SessionUser, bookingId: string): Promise<AdminBookingSummary | null>`:
+- [x] Расширить `AdminBookingSummary`: `ownerId`, `ownerDisplayName: string | null`, `ownerEmail`; вложенный слот дополнить `capacity` (отдельный административный тип слота, чтобы не расширять `BookingSummary` владельца).
+- [x] В `listAllBookings` выбирать `User.id`, `User.email`, `User.displayName`; маппить `ownerId: row.user.id`, `ownerDisplayName: row.user.displayName`; `passwordHash` не выбирать.
+- [x] Добавить `getAdminBooking(actor: SessionUser, bookingId: string): Promise<AdminBookingSummary | null>`:
   - роль `admin`/`super_admin` перечитать из базы до чтения брони, иначе `BookingError("FORBIDDEN")`;
   - принимать только `bookingId`; `actor.id` не используется как фильтр владельца;
   - выбирать бронь по `id` с `slot` (`id`, `startsAt`, `endsAt`, `capacity`) и `user` (`id`, `email`, `displayName`), включая `cancelled`;
   - неизвестный идентификатор → `null`, а не вымышленный объект; `notFound()` вызывает страница;
   - не возвращать `passwordHash`, `tokenHash`, `userId` и служебные поля.
-- [ ] Обновить комментарии и JSDoc типов; не менять транзакции создания, подтверждения и отмены.
+- [x] Обновить комментарии и JSDoc типов; не менять транзакции создания, подтверждения и отмены.
 
-Проверки шага: `npx tsc --noEmit`; `getAdminBooking` для `user` даёт `FORBIDDEN`, для неизвестного id — `null`, для `cancelled` возвращает владельца.
+Проверки шага:
+- `npx tsc --noEmit` — код возврата 0, ошибок нет.
+- `npm run lint` — код возврата 0, ошибок и предупреждений нет.
+- `npm test` — 50 из 50 тестов, 19 suites, `fail 0`; существующие проверки не менялись.
+- Одноразовая проверка на `_test`-базе: `getAdminBooking` для `user` даёт `FORBIDDEN`, для неизвестного id — `null`, для `cancelled` возвращает `ownerId`, `ownerEmail`, `ownerDisplayName` и `slot.capacity`, без `userId`/`passwordHash`/`tokenHash`; `listAllBookings` отдаёт новые поля владельца и вместимость. Вывод `getAdminBooking check: OK`, временный скрипт удалён.
+- `git --no-pager diff --check` — код возврата 0.
+- Ошибок в рабочем коде нет. Разовый проверочный скрипт сначала не запустился из-за top-level `await` в CJS-выводе `tsx`; запуск переведён на `main().catch(...)`, после чего проверка прошла; скрипт удалён.
 
 ### 6.4. Защищённая детализация `/admin/bookings/[id]`
 
@@ -223,4 +229,4 @@
 
 ### 6.10. Следующий узкий запрос
 
-Шаги 6.1 и 6.2 закрыты. Следующий узкий запрос — выполнить только шаг 6.3: расширить `AdminBookingSummary`, обновить `listAllBookings` и добавить `getAdminBooking` в `app/lib/bookings.ts`. Не начинать UI и не менять `prisma/` до завершения серверных функций и их проверок.
+Шаги 6.1–6.3 закрыты. Следующий узкий запрос — выполнить только шаг 6.4: создать защищённую страницу `/admin/bookings/[id]` с `requireRole(["admin", "super_admin"])`, `getAdminBooking` и `notFound()` для `null`. Не начинать остальной UI шагов 6.5–6.7 и не менять `prisma/`.
