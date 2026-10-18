@@ -5,6 +5,7 @@
 - Дата: 18.10.2026.
 - Активный пункт: нет — цикл `6 public schedule, shared header and admin booking detail` закрыт.
 - Последнее изменение: шаг 6.9 выполнен — `tsc`, lint, build и `npm test` (56/56, 21 suite) прошли; HTTP- и headless-browser smoke для `guest`, `user`, `admin` и `super_admin`, проверка PII, модальных окон и инвалидации расписания выполнены; `README.md` обновлён.
+- 18.10.2026: после ручного удаления дублирующих навигационных блоков синхронизированы `spec.md` (FR-11, сценарии С3/С4, ограничения, таблица файлов, CR-14) и `docs/design/home-slots-and-header.md`: переходы и выход обеспечивает общий `header`; состав данных страниц не менялся.
 - Последний закрытый цикл: `6 public schedule, shared header and admin booking detail`.
 - Закрытый план: [`docs/archive/plans/Plan-6-public-schedule-and-admin-booking-detail.md`](docs/archive/plans/Plan-6-public-schedule-and-admin-booking-detail.md).
 - Предыдущий закрытый цикл: `4.3.4 simplified booking flow`; его план — [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).

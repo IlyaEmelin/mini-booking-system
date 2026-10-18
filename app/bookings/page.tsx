@@ -146,17 +146,6 @@ async function BookingsContent() {
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-4">
-        <Link className={LINK_CLASS} href="/slots">
-          Свободные слоты
-        </Link>
-        <Link className={LINK_CLASS} href="/account">
-          Аккаунт
-        </Link>
-        <Link className={LINK_CLASS} href="/">
-          На главную
-        </Link>
-      </div>
     </div>
   );
 }

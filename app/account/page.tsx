@@ -86,50 +86,6 @@ async function AccountContent() {
         </div>
       </dl>
 
-      <section
-        aria-labelledby="account-bookings-heading"
-        className={PANEL_CLASS}
-      >
-        <h2 className={SECTION_HEADING_CLASS} id="account-bookings-heading">
-          Мои записи
-        </h2>
-        <p className={TEXT_CLASS}>
-          Брони текущей учётной записи: время слота, статус и отмена активной
-          записи.
-        </p>
-        <Link className={LINK_CLASS} href="/bookings">
-          Перейти к моим записям
-        </Link>
-      </section>
-
-      <section
-        aria-labelledby="account-notifications-heading"
-        className={PANEL_CLASS}
-      >
-        <h2 className={SECTION_HEADING_CLASS} id="account-notifications-heading">
-          Уведомления
-        </h2>
-        <p className={TEXT_CLASS}>
-          Внутренние уведомления текущей учётной записи: создание,
-          подтверждение и отмена брони.
-        </p>
-        <Link className={LINK_CLASS} href="/notifications">
-          Перейти к уведомлениям
-        </Link>
-      </section>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <LogoutButton />
-        <Link className={LINK_CLASS} href="/slots">
-          Свободные слоты
-        </Link>
-        <Link className={LINK_CLASS} href="/admin">
-          Администрирование
-        </Link>
-        <Link className={LINK_CLASS} href="/">
-          На главную
-        </Link>
-      </div>
     </div>
   );
 }
