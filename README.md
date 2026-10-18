@@ -1,32 +1,36 @@
-# Mini Booking System — booking flow 4.3.4
+# Mini Booking System — публичное расписание и booking flow
 
 Учебный проект сервиса записей (booking) на Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS 4, PostgreSQL и Prisma 8 (`prisma` CLI + `@prisma/orm-postgres`). Валидация — Zod, пароли — `bcryptjs`.
 
-Текущая фаза — **4.3.4 simplified booking flow**: поверх готового слоя данных `Slot`, `Booking`, `Notification` добавлены пользовательские страницы слотов, своих броней и уведомлений, административные разделы и Server Actions. Работает сквозной путь «слот → бронь `pending` → уведомление → подтверждение → уведомление → отмена → уведомление → отметка прочитанным».
+Текущая фаза — **6 public schedule, shared header and admin booking detail** (закрыта): `/` и `/slots` показывают одно публичное расписание всех будущих слотов на 7 дней, общий `header` строится по роли, администратор видит владельцев активных броней и открывает защищённую детализацию `/admin/bookings/[id]`. Поверх слоя данных работает сквозной путь «слот → бронь `pending` → уведомление → подтверждение → уведомление → отмена → уведомление → отметка прочитанным». Предыдущие циклы — `4.3.4 simplified booking flow` и `4.3.3 data layer`.
 
 ## Что уже работает
 
+- `/` и `/slots` — публичное расписание всех будущих слотов на 7 дней вперёд: свободные и занятые. Время указано в UTC; строки — даты со слотами, колонки — только встречающиеся интервалы.
+- Гость на `/` и `/slots` видит `Расписание` и `Войти`; клик по свободному слоту открывает окно «Войти / Зарегистрироваться / Отмена», бронь не создаётся.
 - `/register` — регистрация: новый пользователь всегда получает роль `user`, в базе лежит только `passwordHash` (`bcryptjs.hash(password, 12)`).
 - `/login` — вход по email и паролю через `bcryptjs.compare`; неизвестный email и неверный пароль дают одно сообщение.
 - Сессия — запись в таблице `Session` (в базе только SHA-256 токена) и cookie `mb_session` с `HttpOnly`, `SameSite=Lax`, `Path=/`; в production добавляется `Secure`.
-- `/account` — только при действующей сессии: email, отображаемое имя, роль, ссылки на записи и уведомления, кнопка выхода.
-- `/slots` — будущие слоты на 7 дней вперёд с датой, временем UTC, вместимостью, числом активных броней и свободными местами; свободный слот можно забронировать.
+- `/account` — только при действующей сессии: email, отображаемое имя, роль и кнопка выхода.
 - `/bookings` — только свои брони; владелец отменяет `pending`/`confirmed`, после отмены слот снова доступен.
 - `/notifications` — только свои внутренние уведомления; непрочитанные выделены, отметка прочитанным идемпотентна.
-- `/admin`, `/admin/slots`, `/admin/bookings` — только `admin`/`super_admin`: создание и изменение свободных слотов, все брони, подтверждение `pending` и отмена `pending`/`confirmed`.
-- `/access-denied` — единая страница отказа для гостя и для недостаточной роли: одинаковый вид и одинаковый статус `200`, причина отказа не раскрывается.
+- `/admin`, `/admin/slots`, `/admin/bookings`, `/admin/bookings/[id]` — только `admin`/`super_admin`: создание и изменение свободных слотов, все брони, подтверждение `pending`, отмена `pending`/`confirmed` и детализация любой брони.
+- В занятой ячейке `guest`/`user` видят только неинтерактивное `Занято`; `admin`/`super_admin` — имя владельца (или `Без имени`), email, `User.id`, статус и ссылку `/admin/bookings/[id]`.
+- Общий `header` находится в `<body>`: логотип ведёт на `/`, пункты зависят от роли, «Выйти» работает через Server Action.
+- `/access-denied` — единая страница отказа для гостя и недостаточной роли; причина отказа не раскрывается.
 - Seed — ровно один `super_admin` и 14 воспроизводимых слотов на 7 дней вперёд.
 
 ## Роли и доступ
 
 | Роль | Как появляется | Что доступно |
 | --- | --- | --- |
-| `guest` — состояние без сессии, не значение в базе | нет действующей сессии | `/`, `/register`, `/login`, `/access-denied` |
-| `user` | публичная регистрация через `/register` | `/account`, `/slots`, `/bookings`, `/notifications`; `/admin/*` закрыт |
-| `admin` | только прямой записью в базу: интерфейса выдачи роли нет | всё, что у `user`, плюс `/admin`, `/admin/slots`, `/admin/bookings` |
+| `guest` — состояние без сессии, не значение в базе | нет действующей сессии | `/`, `/slots`, `/register`, `/login`, `/access-denied`; PII владельцев нет |
+| `user` | публичная регистрация через `/register` | `/account`, `/`, `/slots`, `/bookings`, `/notifications`; создаёт и отменяет только свои брони; `/admin/*` закрыт |
+| `admin` | только прямой записью в базу: интерфейса выдачи роли нет | всё, что у `user`, плюс `/admin`, `/admin/slots`, `/admin/bookings`, `/admin/bookings/[id]`; видит владельцев активных броней |
 | `super_admin` | `npm run db:seed` (ровно один начальный администратор) | те же административные возможности, что у `admin` |
 
-Роль никогда не берётся из формы, query-параметра или тела запроса: действие `register` всегда записывает `user`. Проверки сессии и роли выполняются на сервере до рендера страниц и до вызова серверных операций, поэтому скрытый элемент интерфейса защитой не считается. Отдельного сценария или интерфейса для `super_admin` нет.
+Роль никогда не берётся из формы, query-параметра или тела запроса: действие `register` всегда записывает `user`. Проверки сессии и роли выполняются на сервере до рендера страниц и до вызова серверных операций, поэтому скрытый элемент интерфейса защитой не считается. Публичный DTO расписания не содержит email, `displayName` и `User.id` владельца; административный DTO доступен только роли из серверного набора. Отдельного сценария или интерфейса для `super_admin` нет.
+
 
 ## Требования
 
@@ -191,7 +195,7 @@ seed: слоты готовы
 npm run dev
 ```
 
-Приложение: <http://localhost:3000>. Маршруты: `/`, `/register`, `/login`, `/account`, `/slots`, `/bookings`, `/notifications`, `/admin`, `/admin/slots`, `/admin/bookings`, `/access-denied`. Пользовательские и административные страницы проверяют сессию или роль на сервере; гость и `user` без нужной роли уходят на `/access-denied`.
+Приложение: <http://localhost:3000>. Маршруты: `/`, `/register`, `/login`, `/account`, `/slots`, `/bookings`, `/notifications`, `/admin`, `/admin/slots`, `/admin/bookings`, `/admin/bookings/[id]`, `/access-denied`. `/` и `/slots` публичные: сессия читается только для выбора ролевого DTO. Защищённые страницы проверяют сессию или роль на сервере; гость и `user` без нужной роли уходят на `/access-denied`.
 
 Production-сборка локально:
 
@@ -202,22 +206,31 @@ npm start
 
 Для сборки и запуска тоже нужен заполненный `.env`: переменные окружения читаются при загрузке серверных модулей.
 
-## 6. Booking flow 4.3.4
+## 6. Booking flow, публичное расписание и детализация брони
 
-Prisma-контракт содержит `User`, `Session`, `Slot`, `Booking`, `Notification` и перечисления `BookingStatus`, `NotificationType`. Новых моделей и миграций фаза не добавляет. Пользователь работает со слотами, своими бронями и уведомлениями; администратор — со слотами и всеми бронями.
+Prisma-контракт содержит `User`, `Session`, `Slot`, `Booking`, `Notification` и перечисления `BookingStatus`, `NotificationType`. Новых моделей и миграций цикл не добавляет. Пользователь работает со слотами, своими бронями и уведомлениями; администратор — со слотами, всеми бронями и детализацией любой брони.
 
 ### Маршруты и доступ
 
 | Маршрут | Проверка до данных | Что показывает и делает |
 | --- | --- | --- |
-| `/slots` | `requireUser()` | будущие слоты на 7 дней; форма записи передаёт только `slotId` |
+| `/` | нет; `getCurrentUser()` только для выбора DTO | публичное расписание всех слотов горизонта; гость получает окно входа, участник — подтверждение записи |
+| `/slots` | нет; `getCurrentUser()` только для выбора DTO | то же расписание, что на `/`; форма записи передаёт только `slotId` |
 | `/bookings` | `requireUser()` | только брони текущего пользователя; отмена своей активной брони |
 | `/notifications` | `requireUser()` | только уведомления текущего пользователя; отметка прочитанным |
 | `/admin` | `requireRole(["admin", "super_admin"])` | навигация по административным разделам |
 | `/admin/slots` | `requireRole(["admin", "super_admin"])` | слоты горизонта, создание и изменение свободных слотов |
-| `/admin/bookings` | `requireRole(["admin", "super_admin"])` | все брони, email владельца, подтверждение и отмена |
+| `/admin/bookings` | `requireRole(["admin", "super_admin"])` | все брони, владелец, статус, подтверждение и отмена |
+| `/admin/bookings/[id]` | `requireRole(["admin", "super_admin"])` + повторно в `getAdminBooking` | детализация любой брони; неизвестный id даёт `notFound()`, `user` и гость — `/access-denied` |
 
-Все страницы читают cookie внутри `<Suspense>`: при включённых Cache Components это условие сборки. Проверки владельца остаются в серверных модулях, а не в разметке.
+Все страницы читают cookie внутри `<Suspense>`: при включённых Cache Components это условие сборки. Проверки владельца остаются в серверных модулях, а не в разметке. `/` и `/slots` не требуют сессии: роль viewer перечитывается из базы, поэтому устаревшая роль в объекте сессии не расширяет DTO.
+
+### Публичный и административный DTO расписания
+
+- Публичный DTO (`guest`, `user`) содержит только `id`, `startsAt`, `endsAt`, `capacity`, `activeBookings`, `availableCapacity`, `isUpcoming`.
+- Административный DTO дополнительно содержит активные брони: `bookingId`, `ownerId`, `ownerEmail`, `ownerDisplayName` (может быть `null`), `status`. Отменённые брони исключены.
+- `passwordHash`, `tokenHash`, `userId` владельца и служебные поля не возвращаются. PII не выбирается для публичного DTO; скрытие элементов CSS защитой не считается.
+- Занятая ячейка `guest`/`user` — неинтерактивный `Занято`; администратор видит владельца и ссылку `/admin/bookings/[id]`. Частично занятая ячейка остаётся доступной для записи.
 
 ### Модели и ограничения
 
@@ -239,12 +252,15 @@ Prisma-контракт содержит `User`, `Session`, `Slot`, `Booking`, `
 
 ### Серверные модули и Server Actions
 
-- `app/lib/slots.ts` — горизонт 7 дней, `listUpcomingSlots`, `getSlotAvailability`, `createSlot(actor, input)`, `updateSlot(actor, slotId, input)`. Роль перечитывается из базы; `startsAt` должен быть в будущем и внутри горизонта, `endsAt > startsAt`, `capacity > 0`. Слот с активными бронями не изменяется (`SLOT_HAS_ACTIVE_BOOKINGS`); удаления нет. Ошибки — `SlotError` с кодами `FORBIDDEN`, `SLOT_NOT_FOUND`, `SLOT_IN_PAST`, `SLOT_OUT_OF_HORIZON`, `INVALID_SLOT_INTERVAL`, `INVALID_SLOT_CAPACITY`, `SLOT_HAS_ACTIVE_BOOKINGS`, `SLOT_ALREADY_EXISTS`.
-- `app/lib/bookings.ts` — `createBooking`, `confirmBooking`, `cancelBooking`, `listMyBookings`, `listAllBookings`. Создание блокирует слот через `FOR UPDATE`, проверяет будущее время, дубль и вместимость, затем в одной транзакции вставляет бронь и уведомление `booking_created`. `listAllBookings` проверяет роль по базе и отдаёт email владельца, статус, слот и `isSlotUpcoming`, без `passwordHash` и `userId`.
+- `app/lib/slots.ts` — горизонт 7 дней, `listUpcomingSchedule(viewer)`, `listUpcomingSlots`, `getSlotAvailability`, `createSlot(actor, input)`, `updateSlot(actor, slotId, input)`. `listUpcomingSchedule` перечитывает роль viewer из базы и выбирает публичный или административный DTO; для `guest`/`user` данные владельцев не выбираются. Роль административных операций также перечитывается из базы; `startsAt` должен быть в будущем и внутри горизонта, `endsAt > startsAt`, `capacity > 0`. Слот с активными бронями не изменяется (`SLOT_HAS_ACTIVE_BOOKINGS`); удаления нет. Ошибки — `SlotError` с кодами `FORBIDDEN`, `SLOT_NOT_FOUND`, `SLOT_IN_PAST`, `SLOT_OUT_OF_HORIZON`, `INVALID_SLOT_INTERVAL`, `INVALID_SLOT_CAPACITY`, `SLOT_HAS_ACTIVE_BOOKINGS`, `SLOT_ALREADY_EXISTS`.
+- `app/lib/bookings.ts` — `createBooking`, `confirmBooking`, `cancelBooking`, `listMyBookings`, `listAllBookings`, `getAdminBooking`. Создание блокирует слот через `FOR UPDATE`, проверяет будущее время, дубль и вместимость, затем в одной транзакции вставляет бронь и уведомление `booking_created`. `listAllBookings` и `getAdminBooking` проверяют роль по базе и отдают `ownerId`, `ownerEmail`, `ownerDisplayName`, статус, слот и `isSlotUpcoming`, без `passwordHash`, `tokenHash` и `userId`. Детализация доступна для любой брони, включая `cancelled`; неизвестный id даёт `null`.
 - `app/lib/notifications.ts` — `listMyNotifications(actor)` и `markNotificationRead(actor, notificationId)`; чтение и запись ограничены `actor.id`. `markNotificationRead` блокирует строку, проверяет владельца, выставляет `readAt` один раз и повторно не меняет его. Неизвестное и чужое уведомление дают одинаковый отказ.
+- `app/ui/site-header.tsx` и `app/ui/site-header-nav.tsx` — общий `header`: сервер строит пункты по роли из базы, клиент только подсвечивает текущий раздел. «Выйти» — форма с Server Action `logout`.
+- `app/ui/schedule-content.tsx` и `app/ui/schedule-table.tsx` — общая серверная подготовка строк/колонок и клиентская таблица с нативными `<dialog>`; доступность, даты и DTO считаются на сервере.
 - `app/actions/slots.ts` — `createSlotAction`, `updateSlotAction`; `requireRole(["admin", "super_admin"])` до вызова модуля, Zod-валидация полей, `datetime-local` трактуется как UTC.
 - `app/actions/bookings.ts` — `createBookingAction`, `cancelBookingAction` (`requireUser()`), `confirmBookingAction`, `adminCancelBookingAction`, `markNotificationReadAction` (`requireRole` для административных, `requireUser` для остальных). Из формы читаются только `slotId`, `bookingId` или `notificationId`.
-- После успешных действий вызывается `revalidatePath` затронутых маршрутов: `/slots`, `/bookings`, `/notifications`, `/admin/slots`, `/admin/bookings`.
+- После успешных действий вызывается `revalidatePath` затронутых маршрутов: `/`, `/slots`, `/bookings`, `/notifications`, `/admin/slots`, `/admin/bookings` и `/admin/bookings/[id]`. Расписание обновляется без ручной перезагрузки.
+
 
 ### Уведомления
 
@@ -281,12 +297,12 @@ npm run sessions:cleanup
 
 `npm run db:migrate` на актуальной базе не применяет миграций, `npm run db:seed` повторно даёт `создано 0, уже было 14`, `db verify` подтверждает совпадение схемы с контрактом, `migration status` показывает `Up to date`.
 
-`npm test` требует выполненного шага 2 (`.env.test`) и мигрированной тестовой базы. Прогон защищён от порчи данных разработки: имя базы из `.env.test` обязано оканчиваться на `_test` и отличаться от имени базы из `.env`, иначе тесты падают до первого запроса. Тесты запускаются последовательно (`--test-concurrency=1`): они используют общую тестовую базу. Ожидаемый итог — 50 проверок в 19 наборах:
+`npm test` требует выполненного шага 2 (`.env.test`) и мигрированной тестовой базы. Прогон защищён от порчи данных разработки: имя базы из `.env.test` обязано оканчиваться на `_test` и отличаться от имени базы из `.env`, иначе тесты падают до первого запроса. Тесты запускаются последовательно (`--test-concurrency=1`): они используют общую тестовую базу. Ожидаемый итог — 56 проверок в 21 наборе:
 
 ```text
-ℹ tests 50
-ℹ suites 19
-ℹ pass 50
+ℹ tests 56
+ℹ suites 21
+ℹ pass 56
 ℹ fail 0
 ```
 
@@ -302,40 +318,44 @@ sessions: удалено истёкших сессий: 0
 
 ## 9. Smoke-тест сквозного сценария
 
-1. `npm run dev`, открыть <http://localhost:3000>, зарегистрировать обычного `user` и войти.
-2. Открыть `/slots`: видны будущие слоты на 7 дней, дата и время в UTC, вместимость и свободные места. Заполненный слот недоступен.
-3. Нажать «Записаться» на свободном слоте: открывается `/bookings`, бронь в статусе «Ожидает подтверждения». Повторная запись на тот же слот отклоняется.
-4. Открыть `/notifications`: есть непрочитанное `booking_created`, кнопка «Прочитать» отмечает его; повторная отметка не меняет дату прочтения.
-5. Войти seed-пользователем (`SEED_SUPER_ADMIN_EMAIL` и пароль из `.env`) или `admin`: открыть `/admin/slots`, создать слот в пределах 7 дней, при необходимости изменить свободный слот.
-6. Открыть `/admin/bookings`: видны все брони с email владельцев. Подтвердить `pending` — статус «Подтверждена», у владельца появляется `booking_confirmed`.
-7. Отменить `pending` или `confirmed` — статус «Отменена», у владельца появляется `booking_cancelled`, слот снова доступен. Повторная отмена отклоняется.
-8. Под `user` открыть `/admin` и `/admin/slots` прямым запросом: происходит переход на `/access-denied` без защищённых данных.
-9. На `/account` проверить ссылки на `/slots`, `/bookings`, `/notifications` и кнопку выхода.
-10. `npm run sessions:cleanup`: количество удалённых истёкших сессий (`0`, если истёкших нет).
+1. `npm run dev`, открыть <http://localhost:3000> без входа: `/` и `/slots` показывают одинаковое расписание всех будущих слотов, включая занятые; в `header` только «Расписание» и «Войти».
+2. Нажать «Записаться» на свободном слоте: гость видит окно «Войти / Зарегистрироваться / Отмена», форма записи не отправляется. Окно закрывается по «Отмена», `Esc` и клику по фону.
+3. Зарегистрировать обычного `user` и войти. На `/` и `/slots` занятые ячейки показывают только `Занято`; в HTML нет email, `displayName`, `User.id` владельцев и ссылок `/admin/bookings/[id]`.
+4. Нажать «Записаться» на свободном слоте и подтвердить: открывается `/bookings`, бронь в статусе «Ожидает подтверждения». Повторная запись на тот же слот отклоняется. `/notifications` содержит непрочитанное `booking_created`.
+5. Войти seed-пользователем (`SEED_SUPER_ADMIN_EMAIL` и пароль из `.env`) или `admin`: в занятой ячейке видны имя, email, `User.id` владельца, статус и ссылка «Открыть бронь». Ссылка открывает `/admin/bookings/[id]` и не создаёт новую бронь.
+6. На `/admin/bookings/[id]` проверить владельца, слот, вместимость, статус и даты. Подтвердить `pending` — статус «Подтверждена», у владельца появляется `booking_confirmed`; расписание показывает новый статус без ручной перезагрузки.
+7. Отменить `pending` или `confirmed` — статус «Отменена», у владельца появляется `booking_cancelled`, слот снова доступен на `/` и `/slots`. Повторная отмена отклоняется.
+8. На `/admin/slots` создать слот в пределах 7 дней и изменить свободный слот; новая вместимость появляется в расписании. Слот с активной бронью не редактируется.
+9. Под `user` открыть `/admin`, `/admin/slots` и `/admin/bookings/[id]` прямым запросом: сервер уводит на `/access-denied` без защищённых данных. Неизвестный id брони даёт `notFound()`.
+10. Выйти через кнопку в `header`: cookie очищается, старая сессия больше не даёт доступа, навигация снова гостевая.
+11. `npm run sessions:cleanup`: количество удалённых истёкших сессий (`0`, если истёкших нет).
 
-Проверки доступа, cookie, Server Actions и запись данных подтверждены автотестами и smoke-прогонами в dev-базе; временные пользователи, слоты и брони после проверки удалены.
+Проверки доступа, cookie, Server Actions, модальных окон, PII, инвалидации и записи данных подтверждены автотестами, HTTP- и headless-browser smoke-прогонами в production-режиме; временные пользователи, слоты и брони после проверки удалены. Визуальная проверка светлой/тёмной темы и sticky-столбца остаётся ручной.
 
 ## 10. Что осталось проверить вручную в браузере
 
-Серверные проверки доступа, cookie и выход подтверждены HTTP-пробниками без браузера. В браузере пока не подтверждены два пункта:
+Серверные проверки доступа, cookie, PII, модальные окна и выход подтверждены HTTP- и headless-browser smoke-прогонами. В интерактивном браузере с DevTools остаются два пункта auth-контура:
 
 - **CR-10 — `HttpOnly`.** DevTools → Application → Cookies: у `mb_session` стоит `HttpOnly`; в Console `document.cookie` не содержит `mb_session`.
 - **CR-24 — истечение сессии.** Указать в `.env` `SESSION_TTL_SECONDS="60"`, перезапустить `npm run dev`, войти заново (срок берётся при создании сессии), подождать больше минуты и перезагрузить `/account`: ожидается переход на `/access-denied`. Затем вернуть `604800`, перезапустить сервер и войти снова.
+
+Визуально в светлой и тёмной теме стоит отдельно проверить sticky-первый столбец и горизонтальный скролл таблицы на узком экране, а также внешний вид `<dialog>`; серверное и клавиатурное поведение уже проверено.
 
 ## 11. Структура проекта
 
 ```
 app/
-  page.tsx                  публичная главная со ссылками на вход, слоты и записи
+  page.tsx                  публичное расписание на 7 дней (общий ScheduleContent)
   register/page.tsx         форма регистрации
   login/page.tsx            форма входа
-  account/page.tsx          аккаунт и ссылки на разделы
-  slots/page.tsx            свободные слоты на 7 дней и форма записи
+  account/page.tsx          аккаунт и кнопка выхода
+  slots/page.tsx            то же публичное расписание и запись
   bookings/page.tsx         свои брони и отмена
   notifications/page.tsx    свои уведомления и отметка прочитанным
   admin/page.tsx            административная навигация
   admin/slots/page.tsx      слоты, создание и изменение
   admin/bookings/page.tsx   все брони, подтверждение и отмена
+  admin/bookings/[id]/page.tsx детализация любой брони
   access-denied/page.tsx    единая страница отказа
   actions/auth.ts           Server Actions: register, login, logout
   actions/bookings.ts       создание/отмена, подтверждение, админ-отмена, отметка уведомления
@@ -345,12 +365,16 @@ app/
   lib/password.ts           bcryptjs: hash(password, 12) и compare
   lib/session.ts            выдача, чтение и отзыв сессии
   lib/auth.ts               getCurrentUser, requireUser, requireRole
-  lib/slots.ts              горизонт, доступность, createSlot, updateSlot
-  lib/bookings.ts           брони, переходы статусов, listAllBookings
+  lib/slots.ts              горизонт, listUpcomingSchedule, DTO, createSlot, updateSlot
+  lib/bookings.ts           брони, переходы статусов, listAllBookings, getAdminBooking
   lib/notifications.ts      внутренние уведомления и отметка прочтения
   lib/validation.ts         Zod-схемы auth-форм
   lib/booking-validation.ts Zod-схемы форм броней и уведомлений
   lib/slot-validation.ts    Zod-схемы административных форм слотов
+  ui/site-header.tsx        общий header, пункты по роли
+  ui/site-header-nav.tsx    клиентская подсветка текущего раздела
+  ui/schedule-content.tsx   серверная подготовка строк, колонок и ячеек
+  ui/schedule-table.tsx     таблица и модальные окна записи
   ui/*.tsx                  формы, кнопки и клиентские действия
 prisma/
   schema.prisma             User, Session, Slot, Booking, Notification и перечисления
