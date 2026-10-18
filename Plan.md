@@ -4,9 +4,9 @@
 
 - Дата: 18.10.2026.
 - Активный пункт: раздел 6 — публичное расписание, общий `header` и детализация брони.
-- Последнее изменение: шаг 6.3 выполнен — `AdminBookingSummary` расширен владельцем и `capacity`, `listAllBookings` обновлён, добавлен `getAdminBooking`; UI и `prisma/` не изменялись.
+- Последнее изменение: шаг 6.4 выполнен — добавлена защищённая детализация `/admin/bookings/[id]`, карточка `/admin/bookings` получила владельца, `User.id` и ссылку «Открыть бронь»; `prisma/` не изменялся.
 - Документ дизайна: [`docs/design/home-slots-and-header.md`](docs/design/home-slots-and-header.md).
-- Следующий шаг: 6.4 — защищённая детализация `/admin/bookings/[id]`.
+- Следующий шаг: 6.5 — общий `ScheduleTable` и модальные окна.
 - Последний закрытый цикл: `4.3.4 simplified booking flow`.
 - Закрытый план: [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).
 - Новый объём работ начинается только после обновления `spec.md` и отдельного пункта в этом файле.
@@ -144,15 +144,23 @@
 
 ### 6.4. Защищённая детализация `/admin/bookings/[id]`
 
-- [ ] Создать `app/admin/bookings/[id]/page.tsx`; тип — `PageProps<"/admin/bookings/[id]">`, `params` читать через `await`.
-- [ ] Вызвать `requireRole(["admin", "super_admin"])` до чтения данных; затем `getAdminBooking(actor, id)`; при `null` — `notFound()`.
-- [ ] Чтение сессии и данных разместить за границей `<Suspense>` с нейтральным fallback, как на существующих защищённых страницах (NFR-21).
-- [ ] Показать: email владельца, `displayName` или `Без имени`, `User.id`, слот (дата, время, вместимость), статус, `createdAt`, `confirmedAt`, `cancelledAt`; форматирование дат — UTC на сервере.
-- [ ] Использовать существующие `ConfirmBookingButton` и `AdminCancelBookingButton`; формы содержат только `bookingId`; подтверждение доступно для `pending` и будущего слота, отмена — для `pending`/`confirmed`.
-- [ ] В карточке `/admin/bookings` добавить ссылку «Открыть бронь» на `/admin/bookings/${booking.id}`; владельца показывать с `ownerDisplayName` (или `Без имени`), email и `ownerId`.
-- [ ] Сохранить текущие правила `/admin/bookings`: `requireRole` до данных, без `passwordHash`, без изменения статусов в разметке.
+- [x] Создать `app/admin/bookings/[id]/page.tsx`; тип — `PageProps<"/admin/bookings/[id]">`, `params` читать через `await`.
+- [x] Вызвать `requireRole(["admin", "super_admin"])` до чтения данных; затем `getAdminBooking(actor, id)`; при `null` — `notFound()`.
+- [x] Чтение сессии и данных разместить за границей `<Suspense>` с нейтральным fallback, как на существующих защищённых страницах (NFR-21).
+- [x] Показать: email владельца, `displayName` или `Без имени`, `User.id`, слот (дата, время, вместимость), статус, `createdAt`, `confirmedAt`, `cancelledAt`; форматирование дат — UTC на сервере.
+- [x] Использовать существующие `ConfirmBookingButton` и `AdminCancelBookingButton`; формы содержат только `bookingId`; подтверждение доступно для `pending` и будущего слота, отмена — для `pending`/`confirmed`.
+- [x] В карточке `/admin/bookings` добавить ссылку «Открыть бронь» на `/admin/bookings/${booking.id}`; владельца показывать с `ownerDisplayName` (или `Без имени`), email и `ownerId`.
+- [x] Сохранить текущие правила `/admin/bookings`: `requireRole` до данных, без `passwordHash`, без изменения статусов в разметке.
 
-Проверки шага: `npx tsc --noEmit`; вручную — существующий id открывает детализацию, неизвестный даёт `notFound()`, `user` и гость уходят на `/access-denied` до чтения данных.
+Проверки шага:
+- `npx next typegen` — типы маршрутов сгенерированы; `npx tsc --noEmit` — код возврата 0, ошибок нет.
+- `npm run lint` — код возврата 0, ошибок и предупреждений нет.
+- `npm test` — 50 из 50 тестов, 19 suites, `fail 0`; автотесты `getAdminBooking` остаются в шаге 6.8.
+- `npm run build` — успешно; маршрут `/admin/bookings/[id]` зарегистрирован как Partial Prerender.
+- `git --no-pager diff --check` — код возврата 0.
+- Ошибка: первый `npx tsc --noEmit` не видел новый маршрут в `AppRoutes`, потому что `tsconfig.tsbuildinfo` содержал старый снимок. После `npx next typegen` и удаления кэша `tsconfig.tsbuildinfo` проверка прошла; исходный код не менялся.
+- Осталось проверить вручную в браузере: существующий id открывает детализацию, неизвестный id даёт `notFound()`, `user` и гость уходят на `/access-denied` до чтения данных.
+
 
 ### 6.5. Общий `ScheduleTable` и модальные окна
 
@@ -229,4 +237,4 @@
 
 ### 6.10. Следующий узкий запрос
 
-Шаги 6.1–6.3 закрыты. Следующий узкий запрос — выполнить только шаг 6.4: создать защищённую страницу `/admin/bookings/[id]` с `requireRole(["admin", "super_admin"])`, `getAdminBooking` и `notFound()` для `null`. Не начинать остальной UI шагов 6.5–6.7 и не менять `prisma/`.
+Шаги 6.1–6.4 закрыты. Следующий узкий запрос — выполнить только шаг 6.5: создать `app/ui/schedule-content.tsx` и `app/ui/schedule-table.tsx`, серверную матрицу строк/колонок/ячеек и модальные окна для гостя и авторизованных ролей. Не начинать шаги 6.6–6.7 и не менять `prisma/`.

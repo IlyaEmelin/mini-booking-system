@@ -174,7 +174,21 @@ function AdminBookingCard({
               {formatSlotWindow(booking.slot)}
             </time>
           </h2>
-          <p className={TEXT_CLASS}>Владелец: {booking.ownerEmail}</p>
+          <p className={TEXT_CLASS}>
+            Владелец: {booking.ownerDisplayName ?? "Без имени"}
+          </p>
+          <p className={TEXT_CLASS}>
+            Email: {booking.ownerEmail}
+          </p>
+          <p className={`${TEXT_CLASS} break-all font-mono`}>
+            User.id: {booking.ownerId}
+          </p>
+          <Link
+            className={LINK_CLASS}
+            href={`/admin/bookings/${booking.id}`}
+          >
+            Открыть бронь
+          </Link>
         </div>
         <p
           className={`${STATUS_BADGE_BASE_CLASS} ${STATUS_BADGE_CLASSES[booking.status]}`}
