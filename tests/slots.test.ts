@@ -1,10 +1,11 @@
-// Автотесты серверного слоя слотов (FR-22, CR-35).
+// Автотесты серверного слоя слотов (FR-22, FR-29, NFR-17, CR-35).
 //
 // Прогон идёт по отдельной тестовой базе: `tests/test-env.ts` подключается
 // первым и проверяет, что имя базы оканчивается на `_test`. Тестовые строки
 // удаляются до и после прогона, поэтому повторный `npm test` не требует ручной
 // очистки. Даты зафиксированы в 2099 году: слоты seed (2026) не попадают в
-// проверяемое окно и не влияют на сортировку.
+// проверяемое окно и не влияют на сортировку. Граница горизонта проверяется
+// отдельными слотами: последний день входит в список, начало следующего — нет.
 
 import "./test-env";
 
@@ -28,6 +29,12 @@ const FIRST_STARTS_AT = new Date("2099-01-01T01:00:00.000Z");
 /** Второй будущий слот: единственная бронь отменена и не занимает место. */
 const SECOND_STARTS_AT = new Date("2099-01-01T02:00:00.000Z");
 
+/** За секунду до границы горизонта: 8 января, 00:00 UTC минус 1 с — входит. */
+const LAST_DAY_STARTS_AT = new Date("2099-01-07T23:59:59.000Z");
+
+/** Ровно граница горизонта: 8 января, 00:00 UTC — слот уже не входит. */
+const AFTER_HORIZON_STARTS_AT = new Date("2099-01-08T00:00:00.000Z");
+
 const SLOT_DURATION_MS = 60 * 60 * 1000;
 
 const OWNER_EMAIL = "slots.owner@example.com";
@@ -37,12 +44,16 @@ const TEST_STARTS_AT = [
   PAST_STARTS_AT,
   FIRST_STARTS_AT,
   SECOND_STARTS_AT,
+  LAST_DAY_STARTS_AT,
+  AFTER_HORIZON_STARTS_AT,
 ] as const;
 
 type Fixture = Readonly<{
   pastSlotId: string;
   firstSlotId: string;
   secondSlotId: string;
+  lastDaySlotId: string;
+  afterHorizonSlotId: string;
 }>;
 
 let fixture: Fixture;
@@ -94,6 +105,8 @@ before(async () => {
   });
 
   // Создаём в обратном порядке, чтобы проверить сортировку по `startsAt`.
+  const afterHorizonSlotId = await createSlot(AFTER_HORIZON_STARTS_AT, 1);
+  const lastDaySlotId = await createSlot(LAST_DAY_STARTS_AT, 1);
   const secondSlotId = await createSlot(SECOND_STARTS_AT, 1);
   const firstSlotId = await createSlot(FIRST_STARTS_AT, 2);
   const pastSlotId = await createSlot(PAST_STARTS_AT, 1);
@@ -107,6 +120,8 @@ before(async () => {
     pastSlotId,
     firstSlotId,
     secondSlotId,
+    lastDaySlotId,
+    afterHorizonSlotId,
   };
 });
 
@@ -116,23 +131,29 @@ after(async () => {
   await db.close();
 });
 
-describe("Список будущих слотов (FR-22, CR-35)", () => {
+describe("Список будущих слотов (FR-22, FR-29, NFR-17, CR-35)", () => {
   test("возвращает только будущие слоты по возрастанию startsAt", async () => {
     const slots = await listUpcomingSlots(NOW);
     const fixtureIds = new Set([
       fixture.pastSlotId,
       fixture.firstSlotId,
       fixture.secondSlotId,
+      fixture.lastDaySlotId,
+      fixture.afterHorizonSlotId,
     ]);
     const fixtureSlots = slots.filter((slot) => fixtureIds.has(slot.id));
 
     assert.deepEqual(
       fixtureSlots.map((slot) => slot.id),
-      [fixture.firstSlotId, fixture.secondSlotId],
+      [fixture.firstSlotId, fixture.secondSlotId, fixture.lastDaySlotId],
     );
     assert.ok(
       !fixtureSlots.some((slot) => slot.id === fixture.pastSlotId),
       "прошедший слот не должен попадать в список",
+    );
+    assert.ok(
+      !fixtureSlots.some((slot) => slot.id === fixture.afterHorizonSlotId),
+      "слот за границей горизонта не должен попадать в список",
     );
 
     const startsAtValues = slots.map((slot) => slot.startsAt.getTime());
@@ -143,6 +164,22 @@ describe("Список будущих слотов (FR-22, CR-35)", () => {
     assert.ok(
       slots.every((slot) => slot.isUpcoming),
       "все слоты списка должны начинаться после now",
+    );
+  });
+
+  test("включает слот перед границей горизонта и исключает слот на границе", async () => {
+    const slots = await listUpcomingSlots(NOW);
+    const ids = new Set(slots.map((slot) => slot.id));
+
+    assert.equal(
+      ids.has(fixture.lastDaySlotId),
+      true,
+      "слот последнего дня горизонта должен остаться в списке",
+    );
+    assert.equal(
+      ids.has(fixture.afterHorizonSlotId),
+      false,
+      "слот, начинающийся после горизонта, не должен попадать в список",
     );
   });
 

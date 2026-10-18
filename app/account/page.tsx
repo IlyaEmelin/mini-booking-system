@@ -113,6 +113,9 @@ async function AccountContent() {
 
       <div className="flex flex-wrap items-center gap-4">
         <LogoutButton />
+        <Link className={LINK_CLASS} href="/slots">
+          Свободные слоты
+        </Link>
         <Link className={LINK_CLASS} href="/admin">
           Проверка роли на /admin
         </Link>

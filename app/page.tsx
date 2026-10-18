@@ -34,7 +34,8 @@ export default function HomePage() {
           <h1 className={HEADING_CLASS}>Mini Booking System</h1>
           <p className={TEXT_CLASS}>
             Учебный auth-контур: регистрация, вход, локальная сессия и роли.
-            Записи и уведомления появятся в следующих уроках.
+            Свободные слоты доступны авторизованным пользователям, брони и
+            уведомления появятся в следующих уроках.
           </p>
         </div>
 
@@ -44,6 +45,9 @@ export default function HomePage() {
           </Link>
           <Link className={SECONDARY_LINK_CLASS} href="/register">
             Зарегистрироваться
+          </Link>
+          <Link className={SECONDARY_LINK_CLASS} href="/slots">
+            Свободные слоты
           </Link>
         </div>
       </div>
