@@ -4,9 +4,9 @@
 
 - Дата: 18.10.2026.
 - Активный пункт: раздел 6 — публичное расписание, общий `header` и детализация брони.
-- Последнее изменение: шаг 6.1 выполнен — API Next.js 16 / Prisma 8 сверен, baseline чистый.
+- Последнее изменение: шаг 6.2 выполнен — в `app/lib/slots.ts` добавлен ролевой DTO расписания и `listUpcomingSchedule`; UI и `prisma/` не изменялись.
 - Документ дизайна: [`docs/design/home-slots-and-header.md`](docs/design/home-slots-and-header.md).
-- Следующий шаг: 6.2 — ролевой DTO расписания в `app/lib/slots.ts`; код приложения ещё не изменён.
+- Следующий шаг: 6.3 — административная сводка и `getAdminBooking` в `app/lib/bookings.ts`.
 - Последний закрытый цикл: `4.3.4 simplified booking flow`.
 - Закрытый план: [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).
 - Новый объём работ начинается только после обновления `spec.md` и отдельного пункта в этом файле.
@@ -61,7 +61,7 @@
 
 ## 6. Активный пункт: публичное расписание, общий `header` и детализация брони
 
-- Статус: активен; шаг 6.1 завершён, выполняется шаг 6.2.
+- Статус: активен; шаги 6.1 и 6.2 завершены, следующий — 6.3.
 - Источники: `spec.md` — FR-30, FR-33…FR-38, NFR-19…NFR-22, CR-42, CR-44, CR-47…CR-53; `docs/design/home-slots-and-header.md` — разделы 2…10.
 - Цель: `/` и `/slots` показывают одно публичное расписание всех будущих слотов горизонта; `guest`/`user` не получают PII владельцев, `admin`/`super_admin` видят активные брони и переходят в `/admin/bookings/[id]`; общий серверный `header` строится по роли.
 - Границы: не менять модели, миграции, роли, статусы, зависимости, auth-контур и цветовую палитру; не добавлять поиск, фильтры, пагинацию, перенос брони, возврат к слоту после входа и управление пользователями.
@@ -95,23 +95,32 @@
 
 ### 6.2. Ролевой DTO расписания в `app/lib/slots.ts`
 
-- [ ] Сохранить `SlotAvailability`, `listUpcomingSlots(now?)` и `getSlotAvailability(slotId, now?)` без изменения контракта: они нужны `/admin/slots` и существующим тестам.
-- [ ] Добавить экспортируемые типы:
+- [x] Сохранить `SlotAvailability`, `listUpcomingSlots(now?)` и `getSlotAvailability(slotId, now?)` без изменения контракта: они нужны `/admin/slots` и существующим тестам.
+- [x] Добавить экспортируемые типы:
   - `ScheduleBookingSummary` — `bookingId`, `ownerId`, `ownerEmail`, `ownerDisplayName: string | null`, `status: "pending" | "confirmed"`;
   - `PublicScheduleSlot` — текущий `SlotAvailability`;
   - `AdminScheduleSlot` — `PublicScheduleSlot` плюс `activeBookingDetails: readonly ScheduleBookingSummary[]`;
   - `UpcomingSchedule` — дискриминированное объединение `{ visibility: "public"; slots: readonly PublicScheduleSlot[] }` и `{ visibility: "admin"; slots: readonly AdminScheduleSlot[] }`.
-- [ ] Реализовать `listUpcomingSchedule(viewer, now = new Date())`:
+- [x] Реализовать `listUpcomingSchedule(viewer, now = new Date())`:
   - `viewer === null` → публичная выборка без `User`, без массива броней;
   - `viewer !== null` → роль перечитать из базы по `viewer.id`; `admin`/`super_admin` → административная выборка, `user` → публичная; роль из формы, query или клиентского состояния не принимается;
   - фильтр `startsAt > now` и `startsAt < now + 7 суток`, сортировка по `startsAt.asc()`, затем по `endsAt.asc()`;
   - публичный запрос выбирает только `Slot.id/startsAt/endsAt/capacity` и считает активные брони (`pending` + `confirmed`); `availableCapacity = max(0, capacity - activeBookings)`;
   - административный запрос одной выборкой включает активные брони с `id`, `status` и владельцем `id`, `email`, `displayName`; отменённые брони исключены; порядок владельцев детерминирован (`createdAt.asc()`, затем `id.asc()`);
   - PII не выбирается и не маппится для `guest`/`user`; фильтрация в разметке или CSS не используется.
-- [ ] Не добавлять в DTO `passwordHash`, `tokenHash`, `userId` владельца вне `ownerId` административного DTO и служебные поля.
-- [ ] Добавить в `app/lib/slots.ts` краткий комментарий о ролевом DTO и границе PII со ссылками FR-34…FR-36, NFR-20, NFR-21.
+- [x] Не добавлять в DTO `passwordHash`, `tokenHash`, `userId` владельца вне `ownerId` административного DTO и служебные поля.
+- [x] Добавить в `app/lib/slots.ts` краткий комментарий о ролевом DTO и границе PII со ссылками FR-34…FR-36, NFR-20, NFR-21.
 
-Проверки шага: `npx tsc --noEmit`; после появления тестов 6.8 — публичный DTO не содержит ключей `activeBookingDetails`, `ownerEmail`, `ownerId`, `ownerDisplayName`; административный содержит только активные брони.
+Проверки шага:
+
+- `npx tsc --noEmit` — код возврата 0, ошибок нет.
+- `npm run lint` — код возврата 0, ошибок и предупреждений нет.
+- `npm test` — 50 из 50 тестов, 19 suites, `fail 0`; контракты `listUpcomingSlots` и `getSlotAvailability` не изменены.
+- Одноразовая проверка на `_test`-базе: гость и `user` получают `visibility: "public"` без `activeBookingDetails`; `admin` получает `visibility: "admin"`, владельца и только активную бронь, отменённая исключена; устаревшая роль в объекте viewer не используется, роль перечитана из базы. Вывод `schedule check: OK`, временный скрипт удалён.
+- Сортировка публичной выборки дополнена `endsAt.asc()` как tie-breaker при совпадении `startsAt`; контракт функции не изменён.
+- `git --no-pager diff --check` — код возврата 0.
+- `git status --short` до обновления этого файла — изменён только `app/lib/slots.ts`; временных файлов нет.
+- Ошибок нет.
 
 ### 6.3. Административная сводка и `getAdminBooking` в `app/lib/bookings.ts`
 
@@ -214,4 +223,4 @@
 
 ### 6.10. Следующий узкий запрос
 
-Следующий узкий запрос — выполнить только шаг 6.1 (сверка API и baseline), затем 6.2. Не начинать UI и не менять `prisma/` до завершения серверного DTO и его проверок.
+Шаги 6.1 и 6.2 закрыты. Следующий узкий запрос — выполнить только шаг 6.3: расширить `AdminBookingSummary`, обновить `listAllBookings` и добавить `getAdminBooking` в `app/lib/bookings.ts`. Не начинать UI и не менять `prisma/` до завершения серверных функций и их проверок.

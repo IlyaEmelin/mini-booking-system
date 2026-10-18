@@ -5,6 +5,11 @@
 // (`pending` + `confirmed`) и свободную вместимость. Отменённая бронь
 // вместимость не занимает.
 //
+// `listUpcomingSchedule` отдаёт ролевой DTO расписания: `guest`/`user`
+// получают только доступность слота, `admin`/`super_admin` — ещё активные
+// брони с владельцем. Роль viewer перечитывается из базы, а данные владельца
+// не выбираются для публичного DTO (FR-34…FR-36, NFR-20, NFR-21).
+//
 // `createSlot` и `updateSlot` — административные операции: роль перечитывается
 // из базы внутри транзакции, а не берётся из аргументов клиента. Изменение слота
 // с активными бронями запрещено, удаление не реализуется. Идентификатор
@@ -82,6 +87,51 @@ export type SlotAvailability = Readonly<{
   isUpcoming: boolean;
 }>;
 
+/**
+ * Активная бронь в административном DTO расписания (FR-35, NFR-20).
+ *
+ * Поля владельца нужны только для административной ячейки и ссылки на
+ * `/admin/bookings/[id]`. `passwordHash`, `tokenHash` и служебные поля сюда не
+ * входят; отменённые брони в DTO не попадают.
+ */
+export type ScheduleBookingSummary = Readonly<{
+  bookingId: string;
+  ownerId: string;
+  ownerEmail: string;
+  ownerDisplayName: string | null;
+  status: "pending" | "confirmed";
+}>;
+
+/**
+ * Публичный DTO слота для `guest` и `user` (FR-34, NFR-20): только
+ * доступность, без броней и данных владельцев.
+ */
+export type PublicScheduleSlot = SlotAvailability;
+
+/**
+ * Административный DTO слота: публичная доступность и активные брони с
+ * владельцами (FR-35, NFR-20).
+ */
+export type AdminScheduleSlot = Readonly<
+  PublicScheduleSlot & {
+    activeBookingDetails: readonly ScheduleBookingSummary[];
+  }
+>;
+
+/**
+ * Результат `listUpcomingSchedule`: дискриминированное объединение не даёт
+ * перепутать публичный DTO с административным (FR-34, FR-35, NFR-20).
+ */
+export type UpcomingSchedule =
+  | Readonly<{
+      visibility: "public";
+      slots: readonly PublicScheduleSlot[];
+    }>
+  | Readonly<{
+      visibility: "admin";
+      slots: readonly AdminScheduleSlot[];
+    }>;
+
 /** Строка слота вместе с редуцированным числом активных броней. */
 type SlotAvailabilityRow = Readonly<{
   id: string;
@@ -145,6 +195,21 @@ async function loadCurrentRole(
 }
 
 /**
+ * Роль авторизованного viewer для выбора состава расписания (FR-34, FR-35).
+ *
+ * `viewer` приходит из сессии, но роль перечитывается из базы до выборки
+ * данных владельцев: клиентский или устаревший признак роли не участвует в
+ * решении о PII. Неизвестный пользователь получает публичный DTO.
+ */
+async function loadRoleById(userId: string): Promise<SessionRole | null> {
+  const user = await db.orm.public.User.select("role")
+    .where({ id: userId })
+    .first();
+
+  return user?.role ?? null;
+}
+
+/**
  * Проверяет поля слота внутри серверной функции (FR-29, NFR-17).
  *
  * Даты принимаются как `Date`, а не как строки формы: преобразование и
@@ -185,8 +250,8 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * Будущие слоты в горизонте семи дней по возрастанию `startsAt`
- * (FR-22, FR-29, NFR-17).
+ * Будущие слоты в горизонте семи дней по возрастанию `startsAt`, затем
+ * `endsAt` (FR-22, FR-29, NFR-17).
  *
  * В выборку попадают только слоты с `startsAt > now` и `startsAt` ближе
  * `now + 7 суток`. Заполненные слоты не скрываются: у них
@@ -206,10 +271,139 @@ export async function listUpcomingSlots(
     )
     .where((slot) => slot.startsAt.gt(now))
     .where((slot) => slot.startsAt.lt(horizonEnd))
-    .orderBy((slot) => slot.startsAt.asc())
+    .orderBy([
+      (slot) => slot.startsAt.asc(),
+      (slot) => slot.endsAt.asc(),
+    ])
     .all();
 
   return rows.map((row) => toSlotAvailability(row, now));
+}
+
+/** Владелец активной брони, выбранный для административного DTO (FR-35). */
+type ScheduleBookingOwner = Readonly<{
+  id: string;
+  email: string;
+  displayName: string | null;
+}>;
+
+/** Строка активной брони в административной выборке расписания. */
+type ScheduleBookingRow = Readonly<{
+  id: string;
+  status: "pending" | "confirmed" | "cancelled";
+  user: ScheduleBookingOwner | null;
+}>;
+
+/**
+ * Приводит активную бронь к административному DTO (FR-35, NFR-20).
+ *
+ * Функция повторно проверяет статус и владельца: даже при рассогласовании
+ * данных наружу не уйдёт отменённая бронь или бронь без владельца.
+ */
+function toScheduleBookingSummary(
+  booking: ScheduleBookingRow,
+): ScheduleBookingSummary {
+  if (booking.status !== "pending" && booking.status !== "confirmed") {
+    throw new Error("В расписание попала неактивная бронь");
+  }
+
+  if (booking.user === null) {
+    throw new Error("Нарушена ссылочная целостность брони: владелец не найден");
+  }
+
+  return {
+    bookingId: booking.id,
+    ownerId: booking.user.id,
+    ownerEmail: booking.user.email,
+    ownerDisplayName: booking.user.displayName,
+    status: booking.status,
+  };
+}
+
+/**
+ * Административное расписание одной выборкой (FR-35, NFR-20).
+ *
+ * Для каждого слота выбираются только активные брони (`pending` + `confirmed`)
+ * с владельцем; отменённые брони не попадают в DTO. Порядок броней
+ * детерминирован: сначала по `createdAt`, затем по `id`. Сортировка слотов —
+ * по `startsAt`, затем по `endsAt`.
+ */
+async function listAdminSchedule(
+  now: Date,
+): Promise<readonly AdminScheduleSlot[]> {
+  const horizonEnd = slotHorizonEnd(now);
+  const rows = await db.orm.public.Slot
+    .select("id", "startsAt", "endsAt", "capacity")
+    .include("bookings", (bookings) =>
+      bookings
+        .where((booking) => booking.status.in(ACTIVE_BOOKING_STATUSES))
+        .select("id", "status")
+        .include("user", (user) => user.select("id", "email", "displayName"))
+        .orderBy([
+          (booking) => booking.createdAt.asc(),
+          (booking) => booking.id.asc(),
+        ]),
+    )
+    .where((slot) => slot.startsAt.gt(now))
+    .where((slot) => slot.startsAt.lt(horizonEnd))
+    .orderBy([
+      (slot) => slot.startsAt.asc(),
+      (slot) => slot.endsAt.asc(),
+    ])
+    .all();
+
+  return rows.map((row) => {
+    const activeBookingDetails = row.bookings.map((booking) =>
+      toScheduleBookingSummary(booking),
+    );
+
+    return {
+      ...toSlotAvailability(
+        {
+          id: row.id,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          capacity: row.capacity,
+          bookings: activeBookingDetails.length,
+        },
+        now,
+      ),
+      activeBookingDetails,
+    };
+  });
+}
+
+/**
+ * Ролевой DTO публичного расписания для `/` и `/slots` (FR-34…FR-36,
+ * NFR-20, NFR-21).
+ *
+ * `viewer === null` — гость; для `user` возвращается публичный DTO без данных
+ * владельцев. Для `admin`/`super_admin` роль перечитывается из базы до
+ * административной выборки. Горизонт и сортировка общие для обеих ролей.
+ */
+export async function listUpcomingSchedule(
+  viewer: SessionUser | null,
+  now: Date = new Date(),
+): Promise<UpcomingSchedule> {
+  if (viewer === null) {
+    return {
+      visibility: "public",
+      slots: await listUpcomingSlots(now),
+    };
+  }
+
+  const role = await loadRoleById(viewer.id);
+  if (isAdminRole(role)) {
+    return {
+      visibility: "admin",
+      slots: await listAdminSchedule(now),
+    };
+  }
+
+  return {
+    visibility: "public",
+    slots: await listUpcomingSlots(now),
+  };
 }
 
 /**
