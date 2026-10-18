@@ -4,9 +4,9 @@
 
 - Дата: 18.10.2026.
 - Активный пункт: раздел 6 — публичное расписание, общий `header` и детализация брони.
-- Последнее изменение: `Plan.md` дополнен шагами 6.1…6.10 по `spec.md` и `docs/design/home-slots-and-header.md`.
+- Последнее изменение: шаг 6.1 выполнен — API Next.js 16 / Prisma 8 сверен, baseline чистый.
 - Документ дизайна: [`docs/design/home-slots-and-header.md`](docs/design/home-slots-and-header.md).
-- Следующий шаг: 6.1 — сверка API Next.js 16 / Prisma 8 и baseline; код ещё не изменён.
+- Следующий шаг: 6.2 — ролевой DTO расписания в `app/lib/slots.ts`; код приложения ещё не изменён.
 - Последний закрытый цикл: `4.3.4 simplified booking flow`.
 - Закрытый план: [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).
 - Новый объём работ начинается только после обновления `spec.md` и отдельного пункта в этом файле.
@@ -61,7 +61,7 @@
 
 ## 6. Активный пункт: публичное расписание, общий `header` и детализация брони
 
-- Статус: активен; реализация не начата, выполняется шаг 6.1.
+- Статус: активен; шаг 6.1 завершён, выполняется шаг 6.2.
 - Источники: `spec.md` — FR-30, FR-33…FR-38, NFR-19…NFR-22, CR-42, CR-44, CR-47…CR-53; `docs/design/home-slots-and-header.md` — разделы 2…10.
 - Цель: `/` и `/slots` показывают одно публичное расписание всех будущих слотов горизонта; `guest`/`user` не получают PII владельцев, `admin`/`super_admin` видят активные брони и переходят в `/admin/bookings/[id]`; общий серверный `header` строится по роли.
 - Границы: не менять модели, миграции, роли, статусы, зависимости, auth-контур и цветовую палитру; не добавлять поиск, фильтры, пагинацию, перенос брони, возврат к слоту после входа и управление пользователями.
@@ -73,12 +73,25 @@
 
 ### 6.1. Сверка API и базовый срез
 
-- [ ] Прочитать в `node_modules/next/dist/docs/` разделы о `params` страницы (Promise + `PageProps<'/admin/bookings/[id]'>`), `<Suspense>` и Cache Components, `revalidatePath`; не опираться на память о Next.js 15.
-- [ ] Сверить Prisma 8 по скиллу `prisma-8` и `npx prisma --help`: `select`, `include`, `where`, `orderBy`, `forUpdate`, `aggregate` в используемом стиле проекта.
-- [ ] Зафиксировать исходное состояние: `git status --short`, `npx tsc --noEmit`, `npm run lint`; ошибок baseline нет.
-- [ ] Убедиться, что `tmp.md` не отслеживается и в изменения не попадает.
+- [x] Прочитать в `node_modules/next/dist/docs/` разделы о `params` страницы (Promise + `PageProps<'/admin/bookings/[id]'>`), `<Suspense>` и Cache Components, `revalidatePath`; не опираться на память о Next.js 15.
+  - `page.md`: `params` — `Promise`, читается через `await`; `PageProps<'/route'>` — глобальный helper, типы генерируются `next dev`, `next build` или `next typegen`.
+  - `authentication-with-cache-components.md`: чтение cookie/сессии не входит в статическую оболочку, поэтому выполняется только за границей `<Suspense>`; в `layout.tsx` нельзя делать top-level `await` сессии — она передаётся в компонент внутри границы.
+  - `revalidatePath.md`: для динамического сегмента используется шаблон маршрута с типом, например `revalidatePath("/admin/bookings/[id]", "page")`; литеральный путь — без типа.
+- [x] Сверить Prisma 8 по скиллу `prisma-8` и `npx prisma --help`: `select`, `include`, `where`, `orderBy`, `forUpdate`, `aggregate` в используемом стиле проекта.
+  - `npx prisma --help` подтверждает контрактный CLI (`contract`, `db`, `migration`); сгенерированные `prisma/contract.json` и `prisma/contract.d.ts` новее `prisma/schema.prisma`.
+  - `queries-postgres.md`: `.select(...)`, `.where(...)` (объект и лямбда), `.orderBy(...)`, `.include(relation, branch)`, вложенный `.include(...)`, `.aggregate((a) => ({ count: a.count() }))`, `.forUpdate().first()`.
+  - Ограничение: `.forUpdate()` нельзя комбинировать с `include`, `aggregate`, `groupBy`, `distinct` и мутацией (`ORM.LOCK_INCOMPATIBLE`).
+- [x] Зафиксировать исходное состояние: `git status --short`, `npx tsc --noEmit`, `npm run lint`; ошибок baseline нет.
+- [x] Убедиться, что `tmp.md` не отслеживается и в изменения не попадает.
 
-Проверки шага: команды выполнены, результаты записаны в отчёт; код приложения не изменён.
+Проверки шага:
+
+- `git status --porcelain=v1 -uall` — пустой вывод, код возврата 0; рабочее дерево до правки `Plan.md` было чистым.
+- `npx tsc --noEmit` — код возврата 0, ошибок нет.
+- `npm run lint` — код возврата 0, предупреждений и ошибок нет.
+- `git diff --check` — код возврата 0.
+- `tmp.md` отсутствует в рабочем дереве (`Test-Path` → `False`), среди изменённых и неотслеживаемых файлов не значится.
+- Код приложения, `prisma/`, модели, роли, статусы и зависимости не изменялись.
 
 ### 6.2. Ролевой DTO расписания в `app/lib/slots.ts`
 
