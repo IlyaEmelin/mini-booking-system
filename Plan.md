@@ -5,8 +5,10 @@
 - Дата: 17.10.2026.
 - Фаза: `4.3.4 simplified booking flow`.
 - Предыдущая фаза `4.3.3 data layer` закрыта: `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 39/39 в 16 наборах; миграции применены к dev- и test-базе; `README.md` обновлён. История 4.3.3 — в Git.
-- Активный пункт: **Шаг 3. Создание и отмена своей брони с уведомлениями** — `pending`.
+- Активный пункт: **Шаг 4. Показать уведомления и отметить прочитанными** — `pending`.
 - Шаг 0 закрыт: `spec.md` описывает минимальный сценарий `4.3.4` (сценарий `С13`, `FR-29`…`FR-33`, `NFR-17`…`NFR-19`, `CR-42`…`CR-47`).
+- Шаг 2 закрыт: `/slots` показывает будущие слоты на 7 дней; проверки `tsc`, `lint`, `build`, `npm test` (40/40) и smoke пройдены.
+- Шаг 3 закрыт: `createBookingAction`/`cancelBookingAction`, формы записи и отмены, маршрут `/bookings`; создание и отмена проверены на dev-базе, smoke-данные удалены.
 - Границы фазы зафиксированы в `AGENTS.md`; новых моделей, миграций и статусов цикл не добавляет.
 
 ## 1.1 Исходное состояние (проверено)
@@ -122,20 +124,20 @@
 - Ошибки: —. Заполненный слот в ручном smoke не проверялся: активная бронь для этого не создавалась, чтобы не менять dev-базу; состояние покрыто автотестом доступности и веткой `availableCapacity === 0`, ручная проверка остаётся на шаг 3 вместе с формой брони.
 - Следующий шаг: Шаг 3.
 
-### Шаг 3. Создание и отмена своей брони с уведомлениями — `pending`
+### Шаг 3. Создание и отмена своей брони с уведомлениями — `done`
 
-- [ ] Добавить `app/actions/bookings.ts` с `"use server"` и действиями `createBookingAction` и `cancelBookingAction`; каждое действие начинается с `requireUser()`.
-- [ ] Принимать из формы только `slotId` или `bookingId` и валидировать их Zod; `userId`, роль и статус из формы не принимаются.
-- [ ] Вызывать существующие `createBooking(actor, slotId)` и `cancelBooking(actor, bookingId)`; транзакции, проверки вместимости и уведомления не дублировать в действиях.
-- [ ] Переводить `BookingError` в понятные сообщения формы для кодов `SLOT_NOT_FOUND`, `SLOT_IN_PAST`, `SLOT_FULL`, `DUPLICATE_ACTIVE_BOOKING`, `BOOKING_NOT_FOUND`, `FORBIDDEN`, `INVALID_TRANSITION`; чужая бронь неотличима от несуществующей.
-- [ ] После успешной операции вызывать `revalidatePath("/slots")`, `revalidatePath("/bookings")` и `revalidatePath("/notifications")`.
-- [ ] Добавить маршрут `/bookings` («Мои записи»): `requireUser()` и `listMyBookings(actor)`; показать слот, статус, даты создания, подтверждения и отмены; кнопка отмены только для `pending` и `confirmed`.
-- [ ] Не добавлять перенос брони, выбор типа записи и повторное подтверждение.
+- [x] Добавить `app/actions/bookings.ts` с `"use server"` и действиями `createBookingAction` и `cancelBookingAction`; каждое действие начинается с `requireUser()`.
+- [x] Принимать из формы только `slotId` или `bookingId` и валидировать их Zod; `userId`, роль и статус из формы не принимаются.
+- [x] Вызывать существующие `createBooking(actor, slotId)` и `cancelBooking(actor, bookingId)`; транзакции, проверки вместимости и уведомления не дублировать в действиях.
+- [x] Переводить `BookingError` в понятные сообщения формы для кодов `SLOT_NOT_FOUND`, `SLOT_IN_PAST`, `SLOT_FULL`, `DUPLICATE_ACTIVE_BOOKING`, `BOOKING_NOT_FOUND`, `FORBIDDEN`, `INVALID_TRANSITION`; чужая бронь неотличима от несуществующей.
+- [x] После успешной операции вызывать `revalidatePath("/slots")`, `revalidatePath("/bookings")` и `revalidatePath("/notifications")`.
+- [x] Добавить маршрут `/bookings` («Мои записи»): `requireUser()` и `listMyBookings(actor)`; показать слот, статус, даты создания, подтверждения и отмены; кнопка отмены только для `pending` и `confirmed`.
+- [x] Не добавлять перенос брони, выбор типа записи и повторное подтверждение.
 - Действие: замкнуть пользовательский путь «слот → бронь → отмена» на существующий серверный слой.
-- Результат: создание даёт `pending` и уведомление `booking_created`; отмена даёт `cancelled` и `booking_cancelled`; повторная активная бронь на слот отклоняется; пользователь видит только свои записи.
-- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; ручной smoke: бронь → `pending` и уведомление, отмена → `cancelled` и уведомление, повторная бронь → `DUPLICATE_ACTIVE_BOOKING`; `git diff --check`.
-- Статус: `pending`.
-- Ошибки: —.
+- Результат: добавлены `app/lib/booking-validation.ts` (Zod-схемы только для `slotId`/`bookingId` и состояние формы), `app/actions/bookings.ts` (`requireUser()` первым шагом, вызовы `createBooking`/`cancelBooking`, перевод всех кодов `BookingError`, `revalidatePath` трёх маршрутов), клиентские `app/ui/create-booking-form.tsx` и `app/ui/cancel-booking-button.tsx`, страница `app/bookings/page.tsx` с `requireUser()` внутри `<Suspense>`, `listMyBookings(actor)`, статусом, слотом и датами. Создание даёт `pending` и `booking_created`, затем переходит на `/bookings`; отмена даёт `cancelled` и `booking_cancelled`. Заполненный слот формы записи не получает. На `/account` блок «Мои записи» стал ссылкой на `/bookings`; блок уведомлений оставлен на шаг 4. Ссылки на `/bookings` добавлены на `/` и `/slots`.
+- Проверка: `npx tsc --noEmit` — exit 0; `npm run lint` — exit 0; `npm run build` — exit 0 (`/bookings` и `/slots` собираются как Partial Prerender); `npm test` — 40/40 в 16 наборах; `git diff --check` — exit 0. Ручной smoke через запущенный `npm run dev` и headless Chrome: две вкладки `/slots`, создание первой формы → переход на `/bookings` со статусом «Ожидает подтверждения»; повторная отправка устаревшей формы того же слота → «У вас уже есть активная бронь на этот слот»; отмена на `/bookings` → «Отменена»; `/slots` снова показывает форму слота. Проверка базы: одна бронь `cancelled`, два уведомления `booking_created` и `booking_cancelled`, активных броней на слоте нет. Временная бронь, её уведомления и временные smoke-файлы удалены; dev-база восстановлена.
+- Статус: `done`.
+- Ошибки: —. В headless-браузере фоновая вкладка не раскрывает streamed-блок `<Suspense>` до запуска `requestAnimationFrame`, поэтому smoke проверял состояние по DOM и базе, а не по видимому тексту; ошибок приложения и ошибок гидратации в консоли не было.
 - Следующий шаг: Шаг 4.
 
 ### Шаг 4. Показать уведомления и отметить прочитанными — `pending`

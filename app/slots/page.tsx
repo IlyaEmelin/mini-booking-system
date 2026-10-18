@@ -8,6 +8,7 @@ import {
   SLOT_HORIZON_DAYS,
   type SlotAvailability,
 } from "@/app/lib/slots";
+import { CreateBookingForm } from "@/app/ui/create-booking-form";
 
 export const metadata: Metadata = {
   title: "Свободные слоты",
@@ -27,9 +28,9 @@ export const metadata: Metadata = {
 // Чтение cookie стоит за границей `<Suspense>` — условие Cache Components
 // (`next.config.ts`, NFR-7).
 //
-// Форма создания брони и Server Actions появятся на шаге 3 `Plan.md`; на этом
-// шаге страница только показывает доступность, поэтому заполненный слот не
-// получает действия, которое можно отправить.
+// Форма записи передаёт Server Action только идентификатор слота, а владельца и
+// статус определяет серверный слой броней (FR-23, NFR-14). Заполненный слот
+// формы не получает и объясняет, почему запись недоступна (FR-30).
 
 const PAGE_CLASS =
   "flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black";
@@ -115,6 +116,9 @@ async function SlotsContent() {
       )}
 
       <div className="flex flex-wrap items-center gap-4">
+        <Link className={LINK_CLASS} href="/bookings">
+          Мои записи
+        </Link>
         <Link className={LINK_CLASS} href="/account">
           Аккаунт
         </Link>
@@ -152,9 +156,12 @@ function SlotCard({ slot }: Readonly<{ slot: SlotAvailability }>) {
         ) : null}
       </div>
 
-      <p className={isFull ? BADGE_FULL_CLASS : BADGE_AVAILABLE_CLASS}>
-        {isFull ? "Мест нет" : `Свободно: ${slot.availableCapacity}`}
-      </p>
+      <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+        <p className={isFull ? BADGE_FULL_CLASS : BADGE_AVAILABLE_CLASS}>
+          {isFull ? "Мест нет" : `Свободно: ${slot.availableCapacity}`}
+        </p>
+        {isFull ? null : <CreateBookingForm slotId={slot.id} />}
+      </div>
     </article>
   );
 }

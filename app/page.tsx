@@ -34,12 +34,11 @@ export default function HomePage() {
           <h1 className={HEADING_CLASS}>Mini Booking System</h1>
           <p className={TEXT_CLASS}>
             Учебный auth-контур: регистрация, вход, локальная сессия и роли.
-            Свободные слоты доступны авторизованным пользователям, брони и
-            уведомления появятся в следующих уроках.
+            Свободные слоты и свои записи доступны авторизованным пользователям.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <Link className={PRIMARY_LINK_CLASS} href="/login">
             Войти
           </Link>
@@ -48,6 +47,9 @@ export default function HomePage() {
           </Link>
           <Link className={SECONDARY_LINK_CLASS} href="/slots">
             Свободные слоты
+          </Link>
+          <Link className={SECONDARY_LINK_CLASS} href="/bookings">
+            Мои записи
           </Link>
         </div>
       </div>
