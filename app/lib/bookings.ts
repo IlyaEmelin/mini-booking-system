@@ -81,6 +81,22 @@ export type BookingSummary = Readonly<{
   slot: BookingSlotSummary;
 }>;
 
+/**
+ * Сводка брони для административного списка (FR-33). Владелец представлен
+ * только email: `passwordHash`, `userId` и служебные поля наружу не уходят.
+ */
+export type AdminBookingSummary = Readonly<{
+  id: string;
+  ownerEmail: string;
+  status: BookingStatus;
+  createdAt: Date;
+  confirmedAt: Date | null;
+  cancelledAt: Date | null;
+  slot: BookingSlotSummary;
+  /** Слот ещё не начался на момент чтения: условие подтверждения (FR-33). */
+  isSlotUpcoming: boolean;
+}>;
+
 /** Контекст транзакции Prisma 8; тип выводится из публичного метода `db`. */
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -449,5 +465,56 @@ export async function listMyBookings(
     }
 
     return toBookingSummary({ ...row, slot: row.slot });
+  });
+}
+
+/**
+ * Все брони для административного списка (FR-33, CR-44).
+ *
+ * Роль проверяется по базе внутри функции до чтения броней: роль `user` не
+ * должна узнать, существуют ли чужие записи. Наружу уходит email владельца,
+ * слот, статус и даты, но не `passwordHash` и не `userId`. Новые брони
+ * возвращаются первыми.
+ */
+export async function listAllBookings(
+  actor: SessionUser,
+  now?: Date,
+): Promise<readonly AdminBookingSummary[]> {
+  return db.transaction(async (tx) => {
+    const role = await loadCurrentRole(tx, actor.id);
+    if (!isAdminRole(role)) {
+      throw new BookingError("FORBIDDEN");
+    }
+
+    const checkedAt = now ?? new Date();
+    const rows = await tx.orm.public.Booking
+      .select("id", "status", "createdAt", "confirmedAt", "cancelledAt")
+      .include("slot", (slot) => slot.select("id", "startsAt", "endsAt"))
+      .include("user", (user) => user.select("email"))
+      .orderBy((booking) => booking.createdAt.desc())
+      .all();
+
+    return rows.map((row) => {
+      if (row.slot === null || row.user === null) {
+        throw new Error(
+          "Нарушена ссылочная целостность брони: слот или владелец не найден",
+        );
+      }
+
+      return {
+        id: row.id,
+        ownerEmail: row.user.email,
+        status: row.status,
+        createdAt: row.createdAt,
+        confirmedAt: row.confirmedAt,
+        cancelledAt: row.cancelledAt,
+        slot: {
+          id: row.slot.id,
+          startsAt: row.slot.startsAt,
+          endsAt: row.slot.endsAt,
+        },
+        isSlotUpcoming: row.slot.startsAt.getTime() > checkedAt.getTime(),
+      };
+    });
   });
 }

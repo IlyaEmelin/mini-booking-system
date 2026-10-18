@@ -23,8 +23,8 @@ export const metadata: Metadata = {
 //
 // Выборка всегда ограничена текущим пользователем: `requireUser` не принимает
 // идентификатор, поэтому запросить чужой аккаунт нечем (NFR-5). Блок «Мои
-// записи» ведёт на `/bookings`; блок уведомлений остаётся статическим до шага 4
-// `Plan.md`, внешние каналы не подключаются (FR-11, NFR-15).
+// записи» ведёт на `/bookings`, блок «Уведомления» — на `/notifications`;
+// внешние каналы не подключаются (FR-11, NFR-15).
 
 const PAGE_CLASS =
   "flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black";
@@ -110,9 +110,12 @@ async function AccountContent() {
           Уведомления
         </h2>
         <p className={TEXT_CLASS}>
-          Уведомлений пока нет. Раздел появится позже, отдельным этапом; внешние
-          каналы в текущей фазе не подключаются.
+          Внутренние уведомления текущей учётной записи: создание,
+          подтверждение и отмена брони.
         </p>
+        <Link className={LINK_CLASS} href="/notifications">
+          Перейти к уведомлениям
+        </Link>
       </section>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -121,7 +124,7 @@ async function AccountContent() {
           Свободные слоты
         </Link>
         <Link className={LINK_CLASS} href="/admin">
-          Проверка роли на /admin
+          Администрирование
         </Link>
         <Link className={LINK_CLASS} href="/">
           На главную

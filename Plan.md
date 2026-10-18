@@ -5,10 +5,14 @@
 - Дата: 17.10.2026.
 - Фаза: `4.3.4 simplified booking flow`.
 - Предыдущая фаза `4.3.3 data layer` закрыта: `npx tsc --noEmit`, `npm run lint`, `npm run build` — exit 0; `npm test` — 39/39 в 16 наборах; миграции применены к dev- и test-базе; `README.md` обновлён. История 4.3.3 — в Git.
-- Активный пункт: **Шаг 4. Показать уведомления и отметить прочитанными** — `pending`.
+- Активный пункт: нет — цикл `4.3.4` закрыт.
 - Шаг 0 закрыт: `spec.md` описывает минимальный сценарий `4.3.4` (сценарий `С13`, `FR-29`…`FR-33`, `NFR-17`…`NFR-19`, `CR-42`…`CR-47`).
 - Шаг 2 закрыт: `/slots` показывает будущие слоты на 7 дней; проверки `tsc`, `lint`, `build`, `npm test` (40/40) и smoke пройдены.
 - Шаг 3 закрыт: `createBookingAction`/`cancelBookingAction`, формы записи и отмены, маршрут `/bookings`; создание и отмена проверены на dev-базе, smoke-данные удалены.
+- Шаг 4 закрыт: `/notifications`, `markNotificationReadAction` и кнопка отметки; три типа уведомлений, непрочитанные, отметка и идемпотентность проверены в dev-базе, smoke-данные удалены.
+- Шаг 5 закрыт: `/admin/slots`, `/admin/bookings`, `createSlot`/`updateSlot`, `listAllBookings`, `confirmBookingAction`/`adminCancelBookingAction`; создание слота, подтверждение и отмена проверены, `user` получает `/access-denied`.
+- Шаг 6 закрыт: `tests/admin.test.ts` (50/50 в 19 наборах дважды), полный E2E под `user`/`admin`, финальные проверки и `README.md`; временные данные удалены.
+- Пост-цикловое исправление: в `getCurrentUser()` добавлен `await io()` из `next/cache`, потому что Cache Components при проверке статической оболочки доходил до Prisma 8, а её внутренний `crypto.randomUUID()` считался нестабильным значением и давал ошибку пререндера на `/admin`, `/admin/slots` и `/account`. Проверки: `tsc`, `lint`, `build`, `npm test`, защищённые страницы под `super_admin` в `npm run dev` без ошибки; новых моделей, миграций, зависимостей и изменений auth-контура нет.
 - Границы фазы зафиксированы в `AGENTS.md`; новых моделей, миграций и статусов цикл не добавляет.
 
 ## 1.1 Исходное состояние (проверено)
@@ -69,12 +73,7 @@
 
 ## 4. Следующий активный пункт
 
-**Шаг 3. Создание и отмена своей брони с уведомлениями.**
-
-- Действие: добавить Server Actions `createBookingAction` и `cancelBookingAction`, маршрут `/bookings` и связать форму `/slots` с существующим серверным слоем броней.
-- Результат: создание даёт `pending` и уведомление `booking_created`; отмена даёт `cancelled` и `booking_cancelled`; пользователь видит и отменяет только свои записи, повторная активная бронь отклоняется.
-- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; ручной smoke: бронь → `pending` и уведомление, отмена → `cancelled` и уведомление, повторная бронь → `DUPLICATE_ACTIVE_BOOKING`; `git diff --check`.
-- Статус: `pending`.
+Цикл `4.3.4` закрыт: шаги 0–6 выполнены. Новый объём работ начинается только после обновления `spec.md` и отдельного пункта `Plan.md`.
 
 ## 5. Шаги
 
@@ -140,55 +139,55 @@
 - Ошибки: —. В headless-браузере фоновая вкладка не раскрывает streamed-блок `<Suspense>` до запуска `requestAnimationFrame`, поэтому smoke проверял состояние по DOM и базе, а не по видимому тексту; ошибок приложения и ошибок гидратации в консоли не было.
 - Следующий шаг: Шаг 4.
 
-### Шаг 4. Показать уведомления и отметить прочитанными — `pending`
+### Шаг 4. Показать уведомления и отметить прочитанными — `done`
 
-- [ ] Добавить маршрут `/notifications`: `<Suspense>`, `requireUser()`, `listMyNotifications(actor)`; сортировка от новых к старым сохраняется.
-- [ ] Показать тип (`booking_created`, `booking_confirmed`, `booking_cancelled`), текст, дату и признак прочтения; непрочитанные выделить.
-- [ ] Добавить Server Action `markNotificationReadAction` в `app/actions/bookings.ts`: принимает только `notificationId`, вызывает `markNotificationRead(actor, notificationId)` и `revalidatePath("/notifications")`.
-- [ ] Обрабатывать `NOTIFICATION_NOT_FOUND` и `FORBIDDEN` одинаково, без раскрытия чужих данных; повторная отметка остаётся идемпотентной.
-- [ ] Заменить статический блок уведомлений на `/account` ссылкой на `/notifications`; блок «Мои записи» связать с `/bookings`.
-- [ ] Внешние каналы и счётчики в реальном времени не добавлять.
+- [x] Добавить маршрут `/notifications`: `<Suspense>`, `requireUser()`, `listMyNotifications(actor)`; сортировка от новых к старым сохраняется.
+- [x] Показать тип (`booking_created`, `booking_confirmed`, `booking_cancelled`), текст, дату и признак прочтения; непрочитанные выделить.
+- [x] Добавить Server Action `markNotificationReadAction` в `app/actions/bookings.ts`: принимает только `notificationId`, вызывает `markNotificationRead(actor, notificationId)` и `revalidatePath("/notifications")`.
+- [x] Обрабатывать `NOTIFICATION_NOT_FOUND` и `FORBIDDEN` одинаково, без раскрытия чужих данных; повторная отметка остаётся идемпотентной.
+- [x] Заменить статический блок уведомлений на `/account` ссылкой на `/notifications`; блок «Мои записи» связать с `/bookings`.
+- [x] Внешние каналы и счётчики в реальном времени не добавлять.
 - Действие: дать пользователю экран внутренних уведомлений.
 - Результат: пользователь видит только свои уведомления, отмечает их прочитанными один раз, чужие уведомления недоступны.
-- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; ручной smoke: три типа уведомлений, отметка прочитанным, повторная отметка не меняет `readAt`; `git diff --check`.
-- Статус: `pending`.
-- Ошибки: —.
+- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (40/40); ручной smoke: три типа уведомлений, отметка прочитанным, повторная отметка не меняет `readAt`; `git diff --check`.
+- Статус: `done`.
+- Ошибки: —. Первый smoke-прогон использовал dev-сервер, запущенный до появления нового client-компонента, и получил устаревший чанк; после перезапуска `npm run dev` сценарий прошёл.
 - Следующий шаг: Шаг 5.
 
-### Шаг 5. Дать администратору слоты и управление бронями — `pending`
+### Шаг 5. Дать администратору слоты и управление бронями — `done`
 
-- [ ] Расширить `app/lib/slots.ts`: `createSlot(actor, input)` и `updateSlot(actor, slotId, input)` с проверкой роли `admin`/`super_admin` внутри функции.
-- [ ] Валидировать `startsAt`, `endsAt`, `capacity`: `endsAt > startsAt`, `capacity > 0`, `startsAt` в будущем и в пределах 7 дней.
-- [ ] Запретить изменение слота, у которого есть активные брони (`pending`/`confirmed`), отдельным кодом `SLOT_HAS_ACTIVE_BOOKINGS`; удаление слотов не добавлять.
-- [ ] Добавить в `app/lib/bookings.ts` функцию `listAllBookings(actor)` с проверкой роли внутри; выборка включает слот, статус и email владельца, но не `passwordHash`.
-- [ ] Добавить `app/actions/slots.ts`: `createSlotAction` и `updateSlotAction` с `requireRole(["admin", "super_admin"])` до вызова модуля.
-- [ ] Добавить в `app/actions/bookings.ts` действия `confirmBookingAction` и `adminCancelBookingAction` с `requireRole(["admin", "super_admin"])`; пользовательская отмена остаётся отдельным действием с `requireUser()`.
-- [ ] Добавить `/admin/slots`: список слотов на 7 дней и формы создания и редактирования.
-- [ ] Добавить `/admin/bookings`: все брони и кнопки подтверждения и отмены для `pending`/`confirmed`.
-- [ ] Превратить `/admin` в навигацию по административным разделам, сохранив `requireRole`.
-- [ ] После успешных действий вызывать `revalidatePath` затронутых маршрутов; уведомления владельцу создаются существующими транзакциями `confirmBooking` и `cancelBooking`.
-- [ ] Не добавлять управление пользователями, ролями и удаление броней.
+- [x] Расширить `app/lib/slots.ts`: `createSlot(actor, input)` и `updateSlot(actor, slotId, input)` с проверкой роли `admin`/`super_admin` внутри функции.
+- [x] Валидировать `startsAt`, `endsAt`, `capacity`: `endsAt > startsAt`, `capacity > 0`, `startsAt` в будущем и в пределах 7 дней.
+- [x] Запретить изменение слота, у которого есть активные брони (`pending`/`confirmed`), отдельным кодом `SLOT_HAS_ACTIVE_BOOKINGS`; удаление слотов не добавлять.
+- [x] Добавить в `app/lib/bookings.ts` функцию `listAllBookings(actor)` с проверкой роли внутри; выборка включает слот, статус и email владельца, но не `passwordHash`.
+- [x] Добавить `app/actions/slots.ts`: `createSlotAction` и `updateSlotAction` с `requireRole(["admin", "super_admin"])` до вызова модуля.
+- [x] Добавить в `app/actions/bookings.ts` действия `confirmBookingAction` и `adminCancelBookingAction` с `requireRole(["admin", "super_admin"])`; пользовательская отмена остаётся отдельным действием с `requireUser()`.
+- [x] Добавить `/admin/slots`: список слотов на 7 дней и формы создания и редактирования.
+- [x] Добавить `/admin/bookings`: все брони и кнопки подтверждения и отмены для `pending`/`confirmed`.
+- [x] Превратить `/admin` в навигацию по административным разделам, сохранив `requireRole`.
+- [x] После успешных действий вызывать `revalidatePath` затронутых маршрутов; уведомления владельцу создаются существующими транзакциями `confirmBooking` и `cancelBooking`.
+- [x] Не добавлять управление пользователями, ролями и удаление броней.
 - Действие: дать администратору минимальные операции со слотами и бронями.
 - Результат: `admin` и `super_admin` создают и редактируют слоты, подтверждают и отменяют любые активные брони; `user` не проходит на `/admin/*` ни по ссылке, ни прямым запросом.
-- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; ручной smoke: `admin` создаёт слот, подтверждает и отменяет бронь, владелец получает уведомления; `user` получает `/access-denied`; `git diff --check`.
-- Статус: `pending`.
-- Ошибки: —.
+- Проверка: `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (40/40); ручной smoke: `admin` создаёт слот, подтверждает и отменяет бронь, владелец получает три уведомления; `user` получает `/access-denied`; `git diff --check`.
+- Статус: `done`.
+- Ошибки: —. `Date.now()` в Server Component нарушал правило чистоты React; условие подтверждения перенесено в `listAllBookings` как `isSlotUpcoming`.
 - Следующий шаг: Шаг 6.
 
-### Шаг 6. Проверить сценарий, автотесты и обновить `README.md` — `pending`
+### Шаг 6. Проверить сценарий, автотесты и обновить `README.md` — `done`
 
-- [ ] Проверить, что каждая страница и каждый Server Action вызывают `requireUser()` или `requireRole()` до чтения и изменения данных.
-- [ ] Добавить автотесты на новые серверные функции: горизонт 7 дней, `createSlot`/`updateSlot` (роль, интервалы, `capacity`, активные брони), `listAllBookings` (изоляция и роль).
-- [ ] Сохранить идемпотентность `npm test`: фикстуры создаются и удаляются в тестовой базе, прогон повторяется дважды.
-- [ ] Прогнать финальные проверки: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm test`, `npm run db:migrate` (no-op), `npm run db:seed` (без дублей), `npx prisma db verify`, `npx prisma migration status`.
-- [ ] Пройти ручной сценарий раздела 1.2 в `npm run dev` под `user` и `admin`; отдельно проверить прямой запрос админского маршрута под `user`.
-- [ ] Обновить `README.md` по фактическим результатам: новые маршруты, роли, сценарий, ограничения фазы и команды запуска; убрать пометки «появится позже» и ссылки на фазу `4.3.3`.
-- [ ] Обновить раздел 4, критерии готовности и журнал в `Plan.md`.
+- [x] Проверить, что каждая страница и каждый Server Action вызывают `requireUser()` или `requireRole()` до чтения и изменения данных.
+- [x] Добавить автотесты на новые серверные функции: горизонт 7 дней, `createSlot`/`updateSlot` (роль, интервалы, `capacity`, активные брони), `listAllBookings` (изоляция и роль).
+- [x] Сохранить идемпотентность `npm test`: фикстуры создаются и удаляются в тестовой базе, прогон повторяется дважды.
+- [x] Прогнать финальные проверки: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm test`, `npm run db:migrate` (no-op), `npm run db:seed` (без дублей), `npx prisma db verify`, `npx prisma migration status`.
+- [x] Пройти ручной сценарий раздела 1.2 в `npm run dev` под `user` и `admin`; отдельно проверить прямой запрос админского маршрута под `user`.
+- [x] Обновить `README.md` по фактическим результатам: новые маршруты, роли, сценарий, ограничения фазы и команды запуска; убрать пометки «появится позже» и ссылки на фазу `4.3.3`.
+- [x] Обновить раздел 4, критерии готовности и журнал в `Plan.md`.
 - Действие: подтвердить сценарий проверками и зафиксировать runbook.
 - Результат: минимальный сквозной сценарий работает, проверки проходят, `README.md` соответствует фактическому поведению.
-- Проверка: полный набор команд шага; `git diff --check`; `git status --short`.
-- Статус: `pending`.
-- Ошибки: —.
+- Проверка: `npx tsc --noEmit` (0); `npm run lint` (0); `npm run build` (0, 14 маршрутов); `npm test` (50/50 в 19 наборах, дважды); `npm run db:migrate` (No changes / Already up to date); `npm run db:seed` (повторно `создано 0, уже было 14`); `npx prisma db verify` (schema matches contract); `npx prisma migration status` (Up to date); E2E под `user`/`admin`; `git diff --check` (0); `git status --short`.
+- Статус: `done`.
+- Ошибки: —. Первый `db:seed` после смены календарных суток добавил два окна последнего дня, повторный дал `создано 0, уже было 14`. Smoke изменил `capacity` seed-слота из-за совпадения даты в карточке; значение восстановлено до `1`.
 - Следующий шаг: цикл `4.3.4` закрыт; новый объём — только через обновление `spec.md`.
 
 ## 6. Что нельзя ломать и расширять
@@ -254,6 +253,10 @@ git diff --check
 | 17.10.2026 | Шаг 1. Синхронизировать `AGENTS.md` с фазой `4.3.4` | `git diff --check`; `git status --short`; сверка `AGENTS.md` ↔ `Plan.md` | `AGENTS.md` переведён на `4.3.4`: сохранён блок `nextjs-agent-rules`, добавлены правила booking flow, горизонт 7 дней, три статуса, уведомления, права ролей, запрет новых сущностей и внешних каналов; `Plan.md` заменён планом `4.3.4` со сценарием из 11 шагов и шагами 0–6; код не менялся |
 | 17.10.2026 | Шаг 0. Обновить `spec.md` под минимальный сценарий `4.3.4` | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; `git diff --check`; сверка `spec.md` ↔ `Plan.md` ↔ `AGENTS.md` | `spec.md` переведён на `4.3.4`: обновлены заголовок, проблема/цель/критерий успеха, матрица ролей и правила; `С8`…`С12` дополнены UI-шагами, добавлен `С13`; обновлены MVP, `FR-11/25/28`, добавлены `FR-29`…`FR-33`, `NFR-17`…`NFR-19`, `CR-42`…`CR-47`; согласованы инварианты, структура файлов, потоки данных, ограничения, критерии, самопроверка и закрытые решения; код не менялся |
 | 17.10.2026 | Шаг 2. Показать пользователю свободные слоты на 7 дней | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; smoke `/slots`; `git diff --check` | Добавлен `SLOT_HORIZON_DAYS = 7` и фильтр `startsAt < now + 7 суток` в `listUpcomingSlots`; создан Server Component `/slots` с `requireUser()` за `<Suspense>`, датой/временем UTC, вместимостью, активными бронями и свободными местами, состоянием «Мест нет»; ссылки добавлены в `/account` и `/`; автотесты 40/40, smoke: 14 слотов под сессией, гость → `/access-denied`; Server Actions и запись данных не добавлялись |
+| 17.10.2026 | Шаг 4. Показать уведомления и отметить прочитанными | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (40/40); smoke `/notifications`; `git diff --check` | Добавлены `/notifications` с `requireUser()` за `<Suspense>`, три типа уведомлений, дата/время UTC, выделение непрочитанных и кнопка отметки; `markNotificationReadAction` принимает только `notificationId`, возвращает одинаковый текст для `FORBIDDEN`/`NOTIFICATION_NOT_FOUND` и вызывает `revalidatePath("/notifications")`; блок `/account` заменён ссылкой; smoke подтвердил три типа, отметку и неизменный `readAt` при повторной отправке; smoke-данные удалены |
+| 17.10.2026 | Шаг 5. Дать администратору слоты и управление бронями | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` (40/40); smoke `/admin/slots`, `/admin/bookings`; `git diff --check` | Добавлены `SlotError`, `createSlot`/`updateSlot` с ролью из БД, горизонтом, интервалом, capacity и `SLOT_HAS_ACTIVE_BOOKINGS`; `listAllBookings` с email владельца и `isSlotUpcoming`; Server Actions `createSlotAction`/`updateSlotAction`/`confirmBookingAction`/`adminCancelBookingAction`; страницы `/admin/slots`, `/admin/bookings` и навигация `/admin`; smoke: admin создал слот, подтвердил и отменил бронь, владелец получил три уведомления, `user` ушёл на `/access-denied`; smoke-данные удалены |
+| 17.10.2026 | Шаг 6. Проверить сценарий, автотесты и обновить `README.md` | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test` дважды; `npm run db:migrate`; `npm run db:seed`; `npx prisma db verify`; `npx prisma migration status`; E2E; `git diff --check`; `git status --short` | Добавлен `tests/admin.test.ts` на роль, горизонт, интервалы, capacity, активные брони и `listAllBookings`; итог 50/50 в 19 наборах дважды; E2E: admin создал и изменил слот, user создал бронь, прочитал уведомление, admin подтвердил, user отменил, `/admin` под user увёл на `/access-denied`; `README.md` переведён на 4.3.4 и дополнен маршрутами, ролями и smoke-сценарием; `db:migrate` no-op, `db:seed` повторно `0/14`, `db verify` и `migration status` успешны; smoke-данные удалены, capacity seed-слота восстановлен |
+| 17.10.2026 | Пост-цикловое исправление: `crypto.randomUUID()` Prisma при пререндере | `npx tsc --noEmit`; `npm run lint`; `npm run build`; `npm test`; ручной прогон `npm run dev` под `super_admin`; `git diff --check` | В `getCurrentUser()` добавлен `await io()` из `next/cache`: проверка статической оболочки Cache Components останавливается до чтения сессии и запроса Prisma 8, поэтому внутренний `crypto.randomUUID()` больше не попадает в пререндер; `/login`, `/register`, `/account`, `/admin`, `/admin/slots`, `/admin/bookings`, `/slots`, `/bookings`, `/notifications` отдают 200 с содержимым, ошибок в stderr и dev-логе нет; изменения auth-контура ограничены пометкой времени запроса |
 
 Строки журнала добавляются по завершении каждого шага вместе с обновлением полей `Статус`, `Проверка`, `Ошибки`, `Следующий шаг`.
 

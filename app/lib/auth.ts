@@ -30,6 +30,7 @@
 
 import "server-only";
 
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
@@ -41,8 +42,18 @@ import {
 /** Единая страница отказа: одна для гостя и для недостаточной роли (FR-13). */
 export const ACCESS_DENIED_PATH = "/access-denied";
 
-/** Текущий пользователь по cookie сессии или `null` (FR-8, FR-10). */
+/**
+ * Текущий пользователь по cookie сессии или `null` (FR-8, FR-10).
+ *
+ * `await io()` отмечает чтение сессии как операцию времени запроса (NFR-7).
+ * Без него Cache Components при проверке статической оболочки доходит до
+ * Prisma 8, а её внутренний `crypto.randomUUID()` считается нестабильным
+ * значением и попадает в ошибку пререндера. `io()` приостанавливает
+ * пререндер до запроса, а во время реального запроса и в Server Actions
+ * разрешается сразу, поэтому свежесть проверки доступа не меняется.
+ */
 export async function getCurrentUser(): Promise<SessionUser | null> {
+  await io();
   return loadSessionUser();
 }
 

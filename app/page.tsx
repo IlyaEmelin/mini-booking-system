@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Mini Booking System",
-  description: "Учебный сервис записей: регистрация, вход и аккаунт",
+  description: "Учебный сервис записей: слоты, брони и внутренние уведомления",
 };
 
 // Публичная точка входа (шаг 11, `Plan.md`): стартовый экран `create-next-app`
@@ -33,8 +33,9 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h1 className={HEADING_CLASS}>Mini Booking System</h1>
           <p className={TEXT_CLASS}>
-            Учебный auth-контур: регистрация, вход, локальная сессия и роли.
-            Свободные слоты и свои записи доступны авторизованным пользователям.
+            Учебный сервис записей: регистрация, вход, слоты на 7 дней, свои
+            брони и внутренние уведомления. Администратор управляет слотами и
+            подтверждает брони.
           </p>
         </div>
 

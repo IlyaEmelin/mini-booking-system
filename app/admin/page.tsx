@@ -6,18 +6,14 @@ import { requireRole } from "@/app/lib/auth";
 import type { SessionRole } from "@/app/lib/session";
 
 export const metadata: Metadata = {
-  title: "Проверка роли",
-  description: "Серверная проверка роли admin или super_admin",
+  title: "Администрирование",
+  description: "Разделы слотов и броней для admin и super_admin",
 };
 
-// `/admin` — проверочный маршрут серверного разграничения ролей (FR-12, С5).
+// `/admin` — административная навигация (FR-33).
 //
-// Страница ничего не изменяет и не хранит административных данных: это
-// подтверждение доступа без административных функций, как и зафиксировано в
-// границах фазы. Когда появятся административные операции, каждая из них
-// получит собственную проверку роли в своём Server Action.
-//
-// Гость и пользователь с ролью `user` получают один и тот же ответ: 200 и
+// Страница сама данные не изменяет, но каждая дочерняя страница и Server Action
+// повторно проверяют роль. Гость и `user` получают один и тот же ответ: 200 и
 // переход на `/access-denied` без раскрытия причины (FR-13, CR-17, CR-18).
 // Роль читается только из базы данных, а не из формы или query-параметра
 // (FR-15, NFR-4).
@@ -51,14 +47,14 @@ export default function AdminPage() {
   );
 }
 
-/** Подтверждение доступа для `admin` и `super_admin` без административных функций (CR-19). */
+/** Административная навигация для `admin` и `super_admin` (FR-33). */
 async function AdminContent() {
   const user = await requireRole(ALLOWED_ROLES);
 
   return (
     <div className={CARD_CLASS}>
       <div className="flex flex-col gap-2">
-        <h1 className={HEADING_CLASS}>Доступ подтверждён</h1>
+        <h1 className={HEADING_CLASS}>Администрирование</h1>
         <p className={TEXT_CLASS}>
           Проверка роли выполнена на сервере до рендера страницы. Гость и
           пользователь с ролью user сюда не попадают.
@@ -76,10 +72,20 @@ async function AdminContent() {
         </div>
       </dl>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <Link className={LINK_CLASS} href="/admin/slots">
+          Управление слотами
+        </Link>
+        <Link className={LINK_CLASS} href="/admin/bookings">
+          Все брони
+        </Link>
+      </div>
+
       <p className={TEXT_CLASS}>
-        Административных функций в этой фазе нет: маршрут только подтверждает,
-        что серверная проверка роли работает, и никакие данные не изменяет.
-        Роли admin и super_admin выдаются только вне публичного ввода.
+        Доступны создание и изменение свободных слотов, подтверждение броней
+        pending и отмена броней pending/confirmed. Роли admin и super_admin
+        используют одни и те же возможности и выдаются только вне публичного
+        ввода.
       </p>
 
       <div className="flex flex-wrap items-center gap-4">

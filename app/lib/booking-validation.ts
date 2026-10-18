@@ -36,6 +36,14 @@ export const cancelBookingFormSchema = z.object({
   bookingId: bookingIdentifierSchema,
 });
 
+/**
+ * Схема отметки уведомления прочитанным (FR-32): из формы принимается только
+ * `notificationId`. Получатель определяется на сервере по действующей сессии.
+ */
+export const markNotificationReadFormSchema = z.object({
+  notificationId: bookingIdentifierSchema,
+});
+
 /** Сообщение формы брони: ошибка операции или подтверждение успеха. */
 export type BookingFormMessage = Readonly<{
   tone: "notice" | "error";
@@ -49,5 +57,16 @@ export type BookingFormState = Readonly<{
 
 /** Начальное состояние формы: сообщений нет. */
 export const INITIAL_BOOKING_FORM_STATE: BookingFormState = {
+  message: null,
+};
+
+/**
+ * Состояние кнопки отметки уведомления. Отдельный тип не нужен: сообщение
+ * имеет ту же форму, что и у формы брони, а данные уведомления не возвращаются.
+ */
+export type NotificationFormState = BookingFormState;
+
+/** Начальное состояние кнопки отметки уведомления: сообщений нет. */
+export const INITIAL_NOTIFICATION_FORM_STATE: NotificationFormState = {
   message: null,
 };
