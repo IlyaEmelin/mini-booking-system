@@ -45,9 +45,10 @@ const SLOT_ERROR_MESSAGES: Readonly<Record<SlotErrorCode, string>> = {
   SLOT_ALREADY_EXISTS: "Слот с таким временем уже существует.",
 };
 
-/** Инвалидирует административный список и пользовательский список слотов. */
+/** Инвалидирует административный список и публичное расписание. */
 function revalidateSlotViews(): void {
   revalidatePath("/admin/slots");
+  revalidatePath("/");
   revalidatePath("/slots");
 }
 

@@ -13,7 +13,12 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 
 import { db } from "@/app/lib/db";
-import { getSlotAvailability, listUpcomingSlots } from "@/app/lib/slots";
+import type { SessionRole, SessionUser } from "@/app/lib/session";
+import {
+  getSlotAvailability,
+  listUpcomingSchedule,
+  listUpcomingSlots,
+} from "@/app/lib/slots";
 
 import { testDatabaseName } from "./test-env";
 
@@ -39,7 +44,14 @@ const SLOT_DURATION_MS = 60 * 60 * 1000;
 
 const OWNER_EMAIL = "slots.owner@example.com";
 const OTHER_EMAIL = "slots.other@example.com";
-const TEST_EMAILS = [OWNER_EMAIL, OTHER_EMAIL] as const;
+const ADMIN_EMAIL = "slots.admin@example.com";
+const SUPER_ADMIN_EMAIL = "slots.super-admin@example.com";
+const TEST_EMAILS = [
+  OWNER_EMAIL,
+  OTHER_EMAIL,
+  ADMIN_EMAIL,
+  SUPER_ADMIN_EMAIL,
+] as const;
 const TEST_STARTS_AT = [
   PAST_STARTS_AT,
   FIRST_STARTS_AT,
@@ -57,6 +69,24 @@ type Fixture = Readonly<{
 }>;
 
 let fixture: Fixture;
+let owner: SessionUser;
+let other: SessionUser;
+let admin: SessionUser;
+let superAdmin: SessionUser;
+
+/** Создаёт пользователя тестовой базы и возвращает узкий объект сессии. */
+async function createTestUser(
+  email: string,
+  role: SessionRole,
+): Promise<SessionUser> {
+  const user = await db.orm.public.User.select("id").create({
+    email,
+    passwordHash: `slots-test-hash:${email}`,
+    role,
+  });
+
+  return { id: user.id, email, displayName: null, role };
+}
 
 /** Удаляет пользователей (каскадом — их брони) и слоты тестового окна. */
 async function deleteFixtures(): Promise<void> {
@@ -95,14 +125,10 @@ before(async () => {
   assert.ok(testDatabaseName.endsWith("_test"));
   await deleteFixtures();
 
-  const owner = await db.orm.public.User.select("id").create({
-    email: OWNER_EMAIL,
-    passwordHash: "slots-test-owner-password-hash",
-  });
-  const other = await db.orm.public.User.select("id").create({
-    email: OTHER_EMAIL,
-    passwordHash: "slots-test-other-password-hash",
-  });
+  owner = await createTestUser(OWNER_EMAIL, "user");
+  other = await createTestUser(OTHER_EMAIL, "user");
+  admin = await createTestUser(ADMIN_EMAIL, "admin");
+  superAdmin = await createTestUser(SUPER_ADMIN_EMAIL, "super_admin");
 
   // Создаём в обратном порядке, чтобы проверить сортировку по `startsAt`.
   const afterHorizonSlotId = await createSlot(AFTER_HORIZON_STARTS_AT, 1);
@@ -200,6 +226,128 @@ describe("Список будущих слотов (FR-22, FR-29, NFR-17, CR-35)
     // Отменённая бронь не занимает вместимость.
     assert.equal(second.activeBookings, 0);
     assert.equal(second.availableCapacity, 1);
+  });
+});
+
+describe("Ролевой DTO расписания (FR-34…FR-36, NFR-20)", () => {
+  test("guest и user получают публичный DTO без данных владельцев", async () => {
+    const guestSchedule = await listUpcomingSchedule(null, NOW);
+    const userSchedule = await listUpcomingSchedule(owner, NOW);
+    const staleAdminSchedule = await listUpcomingSchedule(
+      { ...owner, role: "admin" },
+      NOW,
+    );
+
+    for (const schedule of [
+      guestSchedule,
+      userSchedule,
+      staleAdminSchedule,
+    ]) {
+      assert.equal(schedule.visibility, "public");
+      const serialized = JSON.stringify(schedule);
+      assert.ok(!serialized.includes(OWNER_EMAIL));
+      assert.ok(!serialized.includes(OTHER_EMAIL));
+      assert.ok(!serialized.includes(owner.id));
+      assert.ok(!serialized.includes(other.id));
+      assert.ok(!serialized.includes("activeBookingDetails"));
+      assert.ok(!serialized.includes("ownerId"));
+      assert.ok(!serialized.includes("ownerEmail"));
+      assert.ok(!serialized.includes("ownerDisplayName"));
+    }
+
+    const secondSlot = guestSchedule.slots.find(
+      (slot) => slot.id === fixture.secondSlotId,
+    );
+    assert.ok(secondSlot !== undefined);
+    if (secondSlot === undefined) {
+      return;
+    }
+
+    // Отменённая бронь не занимает место и не раскрывает владельца.
+    assert.equal(secondSlot.activeBookings, 0);
+    assert.equal(secondSlot.availableCapacity, 1);
+  });
+
+  test("admin и super_admin получают активные брони с владельцем", async () => {
+    for (const viewer of [admin, superAdmin]) {
+      const schedule = await listUpcomingSchedule(viewer, NOW);
+      assert.equal(schedule.visibility, "admin");
+      if (schedule.visibility !== "admin") {
+        return;
+      }
+
+      const firstSlot = schedule.slots.find(
+        (slot) => slot.id === fixture.firstSlotId,
+      );
+      const secondSlot = schedule.slots.find(
+        (slot) => slot.id === fixture.secondSlotId,
+      );
+      assert.ok(firstSlot !== undefined);
+      assert.ok(secondSlot !== undefined);
+      if (firstSlot === undefined || secondSlot === undefined) {
+        return;
+      }
+
+      assert.equal(firstSlot.activeBookings, 2);
+      assert.equal(firstSlot.availableCapacity, 0);
+      assert.equal(firstSlot.activeBookingDetails.length, 2);
+
+      const ownerDetails = firstSlot.activeBookingDetails.find(
+        (booking) => booking.ownerEmail === OWNER_EMAIL,
+      );
+      const otherDetails = firstSlot.activeBookingDetails.find(
+        (booking) => booking.ownerEmail === OTHER_EMAIL,
+      );
+      assert.ok(ownerDetails !== undefined);
+      assert.ok(otherDetails !== undefined);
+      if (ownerDetails === undefined || otherDetails === undefined) {
+        return;
+      }
+
+      assert.equal(ownerDetails.ownerId, owner.id);
+      assert.equal(ownerDetails.ownerDisplayName, null);
+      assert.equal(ownerDetails.status, "pending");
+      assert.equal(otherDetails.status, "confirmed");
+      assert.ok(ownerDetails.bookingId.length > 0);
+      assert.ok(!("userId" in ownerDetails));
+      assert.ok(!("passwordHash" in ownerDetails));
+      assert.ok(!("tokenHash" in ownerDetails));
+
+      // `cancelled` не попадает в административный DTO расписания.
+      assert.equal(secondSlot.activeBookings, 0);
+      assert.equal(secondSlot.activeBookingDetails.length, 0);
+    }
+  });
+
+  test("сохраняет горизонт, сортировку и неотрицательный остаток", async () => {
+    const publicSchedule = await listUpcomingSchedule(null, NOW);
+    const adminSchedule = await listUpcomingSchedule(admin, NOW);
+
+    for (const slots of [publicSchedule.slots, adminSchedule.slots]) {
+      const fixtureIds = new Set([
+        fixture.pastSlotId,
+        fixture.firstSlotId,
+        fixture.secondSlotId,
+        fixture.lastDaySlotId,
+        fixture.afterHorizonSlotId,
+      ]);
+      const fixtureSlots = slots.filter((slot) => fixtureIds.has(slot.id));
+
+      assert.deepEqual(
+        fixtureSlots.map((slot) => slot.id),
+        [fixture.firstSlotId, fixture.secondSlotId, fixture.lastDaySlotId],
+      );
+      assert.ok(
+        slots.every((slot) => slot.availableCapacity >= 0),
+        "свободная вместимость не должна быть отрицательной",
+      );
+
+      const startsAtValues = slots.map((slot) => slot.startsAt.getTime());
+      assert.deepEqual(
+        startsAtValues,
+        [...startsAtValues].sort((left, right) => left - right),
+      );
+    }
   });
 });
 

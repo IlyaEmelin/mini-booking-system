@@ -14,6 +14,7 @@ import { after, before, describe, test } from "node:test";
 import {
   BookingError,
   createBooking,
+  getAdminBooking,
   listAllBookings,
 } from "@/app/lib/bookings";
 import { db } from "@/app/lib/db";
@@ -37,6 +38,7 @@ const OWNER_EMAIL = "admin.owner@example.com";
 const OTHER_EMAIL = "admin.other@example.com";
 const ADMIN_EMAIL = "admin.slot-admin@example.com";
 const SUPER_ADMIN_EMAIL = "admin.slot-super-admin@example.com";
+const OWNER_DISPLAY_NAME = "Booking Owner";
 const TEST_EMAILS = [
   OWNER_EMAIL,
   OTHER_EMAIL,
@@ -56,14 +58,16 @@ const createdSlotIds: string[] = [];
 async function createTestUser(
   email: string,
   role: SessionRole,
+  displayName: string | null = null,
 ): Promise<SessionUser> {
   const user = await db.orm.public.User.select("id").create({
     email,
     passwordHash: `admin-test-hash:${email}`,
+    displayName,
     role,
   });
 
-  return { id: user.id, email, displayName: null, role };
+  return { id: user.id, email, displayName, role };
 }
 
 /** Уникальное будущее окно фикстуры: не пересекается с другими тестами. */
@@ -140,7 +144,7 @@ before(async () => {
   assert.ok(testDatabaseName.endsWith("_test"));
   await deleteFixtures();
 
-  owner = await createTestUser(OWNER_EMAIL, "user");
+  owner = await createTestUser(OWNER_EMAIL, "user", OWNER_DISPLAY_NAME);
   other = await createTestUser(OTHER_EMAIL, "user");
   admin = await createTestUser(ADMIN_EMAIL, "admin");
   superAdmin = await createTestUser(SUPER_ADMIN_EMAIL, "super_admin");
@@ -344,11 +348,24 @@ describe("Список всех броней (FR-33, CR-44, NFR-14)", () => {
     assert.ok(emails.has(OTHER_EMAIL));
 
     for (const booking of fixtures) {
-      assert.ok(!("userId" in booking));
       assert.ok(!("passwordHash" in booking));
       assert.equal(booking.status, "pending");
       assert.equal(booking.isSlotUpcoming, true);
     }
+
+    const byId = new Map(fixtures.map((booking) => [booking.id, booking]));
+    const ownerFixture = byId.get(ownerBooking.id);
+    const otherFixture = byId.get(otherBooking.id);
+    assert.ok(ownerFixture !== undefined);
+    assert.ok(otherFixture !== undefined);
+    if (ownerFixture === undefined || otherFixture === undefined) {
+      return;
+    }
+
+    assert.equal(ownerFixture.ownerId, owner.id);
+    assert.equal(ownerFixture.ownerDisplayName, OWNER_DISPLAY_NAME);
+    assert.equal(otherFixture.ownerId, other.id);
+    assert.equal(otherFixture.ownerDisplayName, null);
 
     const asSuperAdmin = await listAllBookings(superAdmin, NOW);
     const superAdminIds = new Set(asSuperAdmin.map((booking) => booking.id));
@@ -372,6 +389,86 @@ describe("Список всех броней (FR-33, CR-44, NFR-14)", () => {
       return;
     }
     assert.equal(found.isSlotUpcoming, false);
+  });
+});
+
+describe("Детализация брони администратором (FR-33, FR-37, NFR-20, NFR-22)", () => {
+  test("user получает FORBIDDEN, неизвестный id — null", async () => {
+    await expectBookingError(
+      getAdminBooking(owner, "booking-that-does-not-exist"),
+      "FORBIDDEN",
+    );
+    assert.equal(
+      await getAdminBooking(admin, "booking-that-does-not-exist"),
+      null,
+    );
+  });
+
+  test("admin и super_admin получают владельца, слот, даты и статус", async () => {
+    const slotId = await createManagedSlot(2);
+    const booking = await createBooking(owner, slotId, NOW);
+    const slot = (await listUpcomingSlots(NOW)).find(
+      (item) => item.id === slotId,
+    );
+    assert.ok(slot !== undefined);
+    if (slot === undefined) {
+      return;
+    }
+
+    for (const actor of [admin, superAdmin]) {
+      const detail = await getAdminBooking(actor, booking.id);
+      assert.ok(detail !== null);
+      if (detail === null) {
+        return;
+      }
+
+      assert.equal(detail.id, booking.id);
+      assert.equal(detail.ownerId, owner.id);
+      assert.equal(detail.ownerEmail, OWNER_EMAIL);
+      assert.equal(detail.ownerDisplayName, OWNER_DISPLAY_NAME);
+      assert.equal(detail.status, "pending");
+      assert.equal(detail.createdAt.getTime(), booking.createdAt.getTime());
+      assert.equal(detail.confirmedAt, null);
+      assert.equal(detail.cancelledAt, null);
+
+      assert.equal(detail.slot.id, slotId);
+      assert.equal(detail.slot.capacity, 2);
+      assert.equal(detail.slot.startsAt.getTime(), slot.startsAt.getTime());
+      assert.equal(detail.slot.endsAt.getTime(), slot.endsAt.getTime());
+      assert.equal(detail.isSlotUpcoming, true);
+
+      assert.ok(!("userId" in detail));
+      assert.ok(!("passwordHash" in detail));
+      assert.ok(!("tokenHash" in detail));
+      assert.ok(!JSON.stringify(detail).includes("admin-test-hash"));
+    }
+  });
+
+  test("cancelled возвращается с датой отмены", async () => {
+    const slotId = await createManagedSlot(1);
+    const booking = await createBooking(owner, slotId, NOW);
+    const cancelledAt = new Date(NOW.getTime() + SLOT_DURATION_MS);
+
+    await db.orm.public.Booking
+      .where({ id: booking.id })
+      .select("id")
+      .update({ status: "cancelled", cancelledAt });
+
+    const detail = await getAdminBooking(admin, booking.id);
+    assert.ok(detail !== null);
+    if (detail === null) {
+      return;
+    }
+
+    assert.equal(detail.status, "cancelled");
+    assert.equal(detail.confirmedAt, null);
+    assert.ok(detail.cancelledAt !== null);
+    if (detail.cancelledAt === null) {
+      return;
+    }
+    assert.equal(detail.cancelledAt.getTime(), cancelledAt.getTime());
+    assert.equal(detail.ownerId, owner.id);
+    assert.equal(detail.ownerDisplayName, OWNER_DISPLAY_NAME);
   });
 });
 

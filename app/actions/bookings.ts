@@ -100,16 +100,18 @@ function toBookingErrorState(
   throw error;
 }
 
-/** Инвалидирует пользовательские экраны, читающие слоты, брони и уведомления. */
+/** Инвалидирует публичное расписание и пользовательские экраны, читающие изменённые данные. */
 function revalidateBookingViews(): void {
+  revalidatePath("/");
   revalidatePath("/slots");
   revalidatePath("/bookings");
   revalidatePath("/notifications");
 }
 
-/** Инвалидирует административный список броней и затронутые пользовательские экраны. */
+/** Инвалидирует административные экраны броней и затронутые публичные экраны. */
 function revalidateAdminBookingViews(): void {
   revalidatePath("/admin/bookings");
+  revalidatePath("/admin/bookings/[id]", "page");
   revalidateBookingViews();
 }
 

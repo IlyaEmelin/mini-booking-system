@@ -4,9 +4,9 @@
 
 - Дата: 18.10.2026.
 - Активный пункт: раздел 6 — публичное расписание, общий `header` и детализация брони.
-- Последнее изменение: шаг 6.6 выполнен — `/` и `/slots` переведены на общий `<Suspense><ScheduleContent /></Suspense>`, создан серверный `app/ui/site-header.tsx` с клиентской подсветкой `app/ui/site-header-nav.tsx`, `header` смонтирован в `app/layout.tsx`; `requireUser` с публичных страниц расписания убран, `prisma/` не изменялся.
+- Последнее изменение: шаг 6.8 выполнен — добавлены автотесты `listUpcomingSchedule` для `guest`/`user`/`admin`/`super_admin`, `getAdminBooking` и уточнена проверка `listAllBookings`; `prisma/` и серверный код не изменялись.
 - Документ дизайна: [`docs/design/home-slots-and-header.md`](docs/design/home-slots-and-header.md).
-- Следующий шаг: 6.7 — инвалидация расписания после действий с бронями и слотами.
+- Следующий шаг: 6.9 — финальные проверки и документация.
 - Последний закрытый цикл: `4.3.4 simplified booking flow`.
 - Закрытый план: [`docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md`](docs/archive/plans/Plan-4.3.4-simplified-booking-flow.md).
 - Новый объём работ начинается только после обновления `spec.md` и отдельного пункта в этом файле.
@@ -218,22 +218,36 @@
 
 ### 6.7. Инвалидация расписания
 
-- [ ] В `app/actions/bookings.ts` добавить `revalidatePath("/")` в `revalidateBookingViews()`; она вызывается при создании и отмене брони.
-- [ ] В `revalidateAdminBookingViews()` добавить `revalidatePath("/admin/bookings/[id]", "page")` и сохранить инвалидацию `/admin/bookings`, `/`, `/slots`, `/bookings`, `/notifications`.
-- [ ] В `app/actions/slots.ts` добавить `revalidatePath("/")` в `revalidateSlotViews()` рядом с `/slots` и `/admin/slots`.
-- [ ] Не менять контракт `createBookingAction`: только `slotId`; владелец и статус — на сервере; успех — `redirect("/bookings")`.
+- [x] В `app/actions/bookings.ts` добавить `revalidatePath("/")` в `revalidateBookingViews()`; она вызывается при создании и отмене брони.
+- [x] В `revalidateAdminBookingViews()` добавить `revalidatePath("/admin/bookings/[id]", "page")` и сохранить инвалидацию `/admin/bookings`, `/`, `/slots`, `/bookings`, `/notifications`.
+- [x] В `app/actions/slots.ts` добавить `revalidatePath("/")` в `revalidateSlotViews()` рядом с `/slots` и `/admin/slots`.
+- [x] Не менять контракт `createBookingAction`: только `slotId`; владелец и статус — на сервере; успех — `redirect("/bookings")`.
 
-Проверки шага: после создания, подтверждения и отмены брони, а также после создания и изменения слота обновляются `/`, `/slots`, `/bookings`, `/notifications` и административные страницы.
+Проверки шага:
+
+- `npx tsc --noEmit` — код возврата 0, ошибок нет.
+- `npm run lint` — код возврата 0, предупреждений и ошибок нет.
+- `npm run build` — успешно; маршруты и режим Partial Prerender не изменились, `prisma/` не затрагивался.
+- `npm test` — 50 из 50 тестов, 19 suites, `fail 0`; тесты шага 6.7 не добавлялись (автотесты — шаг 6.8).
+- `git --no-pager diff --check` — код возврата 0.
+- Ошибки: нет.
+- Осталось проверить вручную на шаге 6.9: после создания, подтверждения и отмены брони, а также после создания и изменения слота открытые `/`, `/slots`, `/bookings`, `/notifications`, `/admin/bookings` и `/admin/bookings/[id]` обновляются без ручной перезагрузки.
 
 ### 6.8. Автотесты
 
-- [ ] `tests/slots.test.ts`: добавить проверки `listUpcomingSchedule` для `viewer = null` и `user` — публичный DTO, нет `activeBookingDetails`/PII; для `admin` и `super_admin` — есть `activeBookingDetails` с `ownerId`, `ownerEmail`, `ownerDisplayName`, `status`; отменённые брони отсутствуют; границы горизонта, сортировка, `availableCapacity` не ниже нуля сохраняются.
-- [ ] `tests/admin.test.ts`: добавить `getAdminBooking` — `user` → `FORBIDDEN`, неизвестный id → `null`, `admin`/`super_admin` получают владельца (`ownerId`, `ownerEmail`, `ownerDisplayName`), слот с `capacity`, даты и статус; `cancelled` возвращается; `passwordHash`/`tokenHash`/`userId` отсутствуют.
-- [ ] Обновить существующую проверку `listAllBookings`: вместо отсутствия `userId` проверять отсутствие `passwordHash` и корректные `ownerId`/`ownerDisplayName`.
-- [ ] Если серверная подготовка ячеек вынесена в чистую функцию, добавить тест матрицы: занятый слот для `guest`/`user` без PII; для `admin` — владелец и `bookingId`; пустая ячейка без контента; строки/колонки только с слотами.
-- [ ] Тесты используют отдельную `_test`-базу и не меняют данные разработки; даты фиксированы в 2099 году; фикстуры удаляются до и после прогона.
+- [x] `tests/slots.test.ts`: добавлены проверки `listUpcomingSchedule` для `viewer = null` и `user` — публичный DTO, нет `activeBookingDetails`/PII (включая устаревшую роль `admin` в объекте сессии); для `admin` и `super_admin` — есть `activeBookingDetails` с `ownerId`, `ownerEmail`, `ownerDisplayName`, `status`; отменённые брони отсутствуют; границы горизонта, сортировка, `availableCapacity` не ниже нуля сохраняются.
+- [x] `tests/admin.test.ts`: добавлены проверки `getAdminBooking` — `user` → `FORBIDDEN`, неизвестный id → `null`, `admin`/`super_admin` получают владельца (`ownerId`, `ownerEmail`, `ownerDisplayName`), слот с `capacity`, даты и статус; `cancelled` возвращается; `passwordHash`/`tokenHash`/`userId` отсутствуют.
+- [x] Обновлена существующая проверка `listAllBookings`: проверяются отсутствие `passwordHash` и корректные `ownerId`/`ownerDisplayName`.
+- [x] Отдельный тест матрицы ячеек не требуется: подготовка строк и ячеек не вынесена в экспортируемую чистую функцию; публичный и административный DTO проверены напрямую.
+- [x] Тесты используют отдельную `_test`-базу и не меняют данные разработки; даты зафиксированы в 2099 году; фикстуры удаляются до и после прогона.
 
-Проверки шага: `npm test`; число проверок в отчёте обновлено; повторный прогон идемпотентен.
+Проверки шага:
+
+- `npx tsc --noEmit` — код возврата 0.
+- `npm test` — 56 из 56 тестов, 21 suite, `fail 0`; повторный прогон — снова 56 из 56, 21 suite, `fail 0`, результаты идемпотентны.
+- `git --no-pager diff --check` — код возврата 0.
+- Ошибки: нет.
+- Осталось проверить вручную на шаге 6.9: полный smoke-тест гостя, `user`, `admin` и `super_admin`, исходный HTML без PII и инвалидацию `/`/`/slots` после изменений броней и слотов.
 
 ### 6.9. Финальные проверки и документация
 
@@ -257,4 +271,4 @@
 
 ### 6.10. Следующий узкий запрос
 
-Шаги 6.1–6.6 закрыты. Следующий узкий запрос — выполнить только шаг 6.7: добавить `revalidatePath("/")` в `revalidateBookingViews()` и `revalidateSlotViews()`, а также `revalidatePath("/admin/bookings/[id]", "page")` в `revalidateAdminBookingViews()`, не меняя контракт `createBookingAction`. Не начинать шаги 6.8–6.9 и не менять `prisma/`.
+Шаги 6.1–6.8 закрыты. Следующий узкий запрос — выполнить только шаг 6.9: финальные проверки и документация. Не начинать новый объём работ и не менять `prisma/`.
