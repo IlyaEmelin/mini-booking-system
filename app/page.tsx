@@ -1,59 +1,35 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
+
+import { ScheduleContent } from "@/app/ui/schedule-content";
 
 export const metadata: Metadata = {
   title: "Mini Booking System",
-  description: "Учебный сервис записей: слоты, брони и внутренние уведомления",
+  description:
+    "Публичное расписание слотов на 7 дней вперёд: свободные и занятые окна записи",
 };
 
-// Публичная точка входа (шаг 11, `Plan.md`): стартовый экран `create-next-app`
-// заменён ссылками на формы.
+// `/` — публичная точка входа с расписанием (FR-34, CR-48).
 //
-// Страница статическая и намеренно не читает сессию: это публичный вход, а не
-// защищённый маршрут, поэтому для гостя и для авторизованного пользователя
-// ответ одинаков. Переход авторизованного пользователя касается только `/login`
-// и `/register` (FR-19, CR-31).
+// Страница не вызывает `requireUser`: расписание доступно гостю, а сессия
+// читается внутри `ScheduleContent` только для выбора ролевого DTO (FR-35,
+// FR-36, NFR-21). Чтение cookie остаётся за границей `<Suspense>`, поэтому
+// статическая оболочка не содержит данных пользователя (NFR-7).
+//
+// Разметка таблицы здесь не дублируется: `/slots` использует тот же серверный
+// компонент расписания (FR-34).
 
 const PAGE_CLASS =
-  "flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black";
-const CARD_CLASS =
-  "flex w-full max-w-md flex-col gap-6 rounded-2xl border border-black/[.08] bg-white p-8 dark:border-white/[.145] dark:bg-black";
-const HEADING_CLASS =
-  "text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50";
-const TEXT_CLASS = "text-base text-zinc-600 dark:text-zinc-400";
-const PRIMARY_LINK_CLASS =
-  "flex h-11 items-center justify-center rounded-full bg-foreground px-5 text-base font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]";
-const SECONDARY_LINK_CLASS =
-  "flex h-11 items-center justify-center rounded-full border border-black/[.12] px-5 text-base font-medium text-zinc-950 transition-colors hover:bg-black/[.04] dark:border-white/[.18] dark:text-zinc-50 dark:hover:bg-white/[.08]";
+  "flex flex-1 flex-col items-center bg-zinc-50 px-6 py-10 dark:bg-black";
+const TEXT_CLASS = "text-sm text-zinc-600 dark:text-zinc-400";
 
+/** Статическая оболочка `/`: данных слотов и сессии в ней нет. */
 export default function HomePage() {
   return (
     <main className={PAGE_CLASS}>
-      <div className={CARD_CLASS}>
-        <div className="flex flex-col gap-2">
-          <h1 className={HEADING_CLASS}>Mini Booking System</h1>
-          <p className={TEXT_CLASS}>
-            Учебный сервис записей: регистрация, вход, слоты на 7 дней, свои
-            брони и внутренние уведомления. Администратор управляет слотами и
-            подтверждает брони.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <Link className={PRIMARY_LINK_CLASS} href="/login">
-            Войти
-          </Link>
-          <Link className={SECONDARY_LINK_CLASS} href="/register">
-            Зарегистрироваться
-          </Link>
-          <Link className={SECONDARY_LINK_CLASS} href="/slots">
-            Свободные слоты
-          </Link>
-          <Link className={SECONDARY_LINK_CLASS} href="/bookings">
-            Мои записи
-          </Link>
-        </div>
-      </div>
+      <Suspense fallback={<p className={TEXT_CLASS}>Загрузка расписания…</p>}>
+        <ScheduleContent />
+      </Suspense>
     </main>
   );
 }
